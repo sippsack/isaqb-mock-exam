@@ -1,0 +1,258 @@
+= Sechs Use Cases decken die erste Stufe ab
+
+Alle Use Cases stehen auf User-Goal-Level im Fully-Dressed-Format nach Cockburn.
+Scope ist immer das System „Mock-Exam-App“ (Frontend und Backend).
+
+[cols="1,3,2,2"]
+|===
+|ID |Use Case |Primary Actor |PRD
+
+|UC-01 |Probeprüfung ablegen |Kandidat |M2, M3, S1
+|UC-02 |Problem zu einer Frage melden |Kandidat |M4, M6, S2
+|UC-03 |Draft-Version prüfen und freigeben |AG-Mitglied |M5
+|UC-04 |Gemeldete Frage auswerten |AG-Mitglied |M5, S3
+|UC-05 |Schwelle einstellen |AG-Mitglied |M6
+|UC-06 |Fragenbestand aktualisieren |AG-Mitglied |M1
+|===
+
+[[uc-01]]
+== UC-01 Probeprüfung ablegen
+
+[horizontal]
+Primary Actor:: Kandidat
+Level:: User Goal
+Stakeholders und Interessen::
+* Kandidat: will unter echten Bedingungen erfahren, ob er bestanden hätte.
+* AG Foundation: will, dass jede abgeschlossene Prüfung die Zähler der Fragen erhöht (PRD SC2).
+Vorbedingungen:: Mindestens eine Released-Version liegt in der gewählten Sprache vor.
+Minimalgarantie:: Bereits gegebene Antworten gehen nicht verloren, solange die Prüfung nicht gelöscht ist (BR-25, BR-31).
+Trigger:: Der Kandidat öffnet die Startseite und wählt „Prüfung starten“.
+Nachbedingungen (Erfolg)::
+* Die Prüfung ist abgegeben und unveränderlich (BR-30).
+* Der Kandidat kennt Punktzahl, Prozentwert und ob er bestanden hätte (BR-43, BR-44).
+* Der Abschlusszähler jeder Version in der Prüfung ist um 1 erhöht (BR-45).
+
+=== Main Success Scenario
+
+. Der Kandidat wählt die Sprache Deutsch oder Englisch (BR-21).
+. Das System zieht bis zu 40 Released-Fragen zufällig, legt eine Prüfung an und zeigt einen Link zum Fortsetzen (BR-20, BR-22, BR-25).
+. Das System zeigt die erste Frage mit Punktzahl, Fragetext und Antwortoptionen, ohne Lösung (BR-27).
+. Der Kandidat wählt seine Antwort; das System speichert sie sofort auf dem Server (BR-26).
+. Der Kandidat navigiert zur nächsten oder einer beliebigen anderen Frage.
++
+_Schritte 3–5 wiederholen sich, bis der Kandidat alle Fragen beantwortet hat._
+. Der Kandidat gibt die Prüfung ab.
+. Das System bewertet jede Frage nach den offiziellen Regeln und zeigt das Ergebnis (BR-40 bis BR-44).
+. Das System bittet den Kandidaten um Feedback zu den Fragen (BR-55).
+
+=== Extensions
+
+2a. Keine Released-Version liegt in der gewählten Sprache vor::
+. Das System meldet, dass derzeit keine Prüfung möglich ist. Der Use Case endet.
+
+2b. Weniger als 40 Released-Versionen liegen vor::
+. Das System zieht alle verfügbaren Released-Versionen (BR-20). Weiter mit Schritt 3.
+
+4a. Der Kandidat unterbricht die Prüfung::
+. Der Kandidat schließt den Browser.
+. Später öffnet er den Link zum Fortsetzen, auf demselben oder einem anderen Gerät.
+. Das System stellt alle gegebenen Antworten wieder her (BR-26). Weiter mit Schritt 3.
+
+4b. Der Link zum Fortsetzen ist unbekannt oder die Prüfung wurde gelöscht::
+. Das System meldet, dass die Prüfung nicht existiert, und bietet eine neue an (BR-31). Der Use Case endet.
+
+4c. Das Speichern der Antwort scheitert::
+. Das System zeigt, dass die Antwort nicht gespeichert ist, und versucht es erneut.
+. Der Kandidat kann weiterarbeiten; die Abgabe ist erst möglich, wenn alle Antworten gespeichert sind.
+
+4d. Der Kandidat meldet ein Problem zur aktuellen Frage::
+. Weiter mit <<uc-02>>; danach zurück zu Schritt 4.
+
+6a. Mindestens eine Frage ist unbeantwortet::
+. Das System verweigert die Abgabe und listet die unbeantworteten Fragen (BR-28). Weiter mit Schritt 3.
+
+6b. Die Prüfung ist bereits abgegeben (etwa in einem zweiten Tab)::
+. Das System zeigt das vorhandene Ergebnis (BR-30). Weiter mit Schritt 8.
+
+[[uc-02]]
+== UC-02 Problem zu einer Frage melden
+
+[horizontal]
+Primary Actor:: Kandidat
+Level:: User Goal
+Stakeholders und Interessen::
+* Kandidat: will Unklarheiten loswerden, ohne sich anzumelden.
+* AG Foundation: will verwertbare Meldungen und keinen Spam (PRD RK2).
+Vorbedingungen:: Der Kandidat hat eine Prüfung geöffnet, laufend oder abgegeben (BR-50).
+Minimalgarantie:: Eine gescheiterte Meldung verändert weder Zähler noch Status.
+Trigger:: Der Kandidat wählt „Problem melden“ an einer Frage oder an einer Antwortoption.
+Nachbedingungen (Erfolg)::
+* Die Meldung ist der Version zugeordnet, die der Kandidat gesehen hat (BR-58).
+* Hat die Meldung die Schwelle erreicht, ist die Version auf Draft gesetzt (BR-13).
+
+=== Main Success Scenario
+
+. Das System zeigt ein Formular mit Kategorie, Freitext und optionalen Kontaktdaten (BR-51 bis BR-53).
+. Der Kandidat wählt eine Kategorie und beschreibt das Problem.
+. Der Kandidat sendet die Meldung ab.
+. Das System speichert die Meldung zur Version der Frage, bei einer Option zusätzlich mit deren Kennung (BR-15, BR-58).
+. Das System erhöht den Meldungszähler der Version (BR-54).
+. Das System bestätigt den Eingang.
+
+=== Extensions
+
+2a. Der Kandidat gibt Kontaktdaten an::
+. Das System verlangt die Einwilligung, dass die AG ihn kontaktieren darf (BR-53).
+. Ohne Einwilligung speichert das System keine Kontaktdaten.
+
+3a. Die Eingaben sind ungültig (keine Kategorie, Text zu lang)::
+. Das System zeigt den Fehler am Feld und speichert nichts (BR-51, BR-52). Weiter mit Schritt 2.
+
+5a. Der Kandidat hat in dieser Prüfung schon eine Meldung zu dieser Frage abgegeben::
+. Das System speichert die Meldung, erhöht den Zähler aber nicht (BR-54). Weiter mit Schritt 6.
+
+5b. Der Zähler erreicht die Schwelle und die Version ist Released::
+. Das System setzt die Version auf Draft und protokolliert den Wechsel (BR-13, BR-65).
+. Die Frage erscheint in keiner neuen Prüfung mehr; laufende Prüfungen behalten sie (BR-22). Weiter mit Schritt 6.
+
+5c. Die gemeldete Version ist nicht mehr die aktuelle Version der Frage::
+. Das System speichert die Meldung zur alten Version; der Status der aktuellen Version ändert sich nicht (BR-58). Weiter mit Schritt 6.
+
+[[uc-03]]
+== UC-03 Draft-Version prüfen und freigeben
+
+[horizontal]
+Primary Actor:: AG-Mitglied
+Level:: User Goal
+Stakeholders und Interessen::
+* AG Foundation: Nur geprüfte Fragen sollen in die Wertung eingehen (PRD R1).
+* Kandidaten: wollen fachlich korrekte Fragen.
+Vorbedingungen:: Das AG-Mitglied ist angemeldet (BR-60).
+Minimalgarantie:: Ohne ausdrückliche Freigabe bleibt eine Version Draft.
+Trigger:: Das AG-Mitglied öffnet die Liste der Draft-Fragen.
+Nachbedingungen (Erfolg)::
+* Die Version ist Released und kann in neuen Prüfungen erscheinen (BR-12).
+* Das Protokoll nennt Zeitpunkt und AG-Mitglied (BR-65).
+
+=== Main Success Scenario
+
+. Das AG-Mitglied meldet sich mit GitHub an (BR-60).
+. Das System zeigt alle Fragen mit Status, Herkunftsordner, Zählern und Importfehlern (BR-62).
+. Das AG-Mitglied filtert nach Draft und öffnet eine Frage.
+. Das System zeigt die aktuelle Version mit Lösung, Erklärung und allen Sprachen sowie frühere Meldungen (BR-63).
+. Das AG-Mitglied gibt die Version frei.
+. Das System setzt die Version auf Released und protokolliert die Freigabe (BR-12, BR-65).
+
+=== Extensions
+
+1a. Das GitHub-Konto gehört nicht zum Admin-Team::
+. Das System verweigert den Zugang (BR-61). Der Use Case endet.
+
+4a. Das AG-Mitglied hält die Frage nicht für freigabereif::
+. Das AG-Mitglied überarbeitet sie per Pull Request im Fragen-Repo, außerhalb des Systems. Der Use Case endet; die Version bleibt Draft.
+
+5a. Inzwischen liegt eine neuere Version vor, oder die Frage ist aus dem Repo verschwunden::
+. Das System verweigert die Freigabe und zeigt die aktuelle Lage (BR-12, BR-09). Weiter mit Schritt 4.
+
+5b. Die Version ist bereits Released (ein anderes AG-Mitglied war schneller)::
+. Das System meldet den Status und ändert nichts. Der Use Case endet.
+
+[[uc-04]]
+== UC-04 Gemeldete Frage auswerten
+
+[horizontal]
+Primary Actor:: AG-Mitglied
+Level:: User Goal
+Stakeholders und Interessen::
+* AG Foundation: will verstehen, was an einer Frage falsch ist, und sie verbessern.
+* Kandidaten mit Kontaktdaten: erwarten, dass nur die AG ihre Daten sieht (PRD R10).
+Vorbedingungen:: Das AG-Mitglied ist angemeldet (BR-60).
+Minimalgarantie:: Das System zeigt Kontaktdaten nur angemeldeten AG-Mitgliedern (BR-56).
+Trigger:: Das AG-Mitglied öffnet eine Frage mit Meldungen.
+Nachbedingungen (Erfolg):: Das AG-Mitglied kennt alle Meldungen und Zählerstände jeder Version und kann die Überarbeitung im Repo beginnen.
+
+=== Main Success Scenario
+
+. Das System zeigt die Fragenliste, sortiert nach Meldungen zur aktuellen Version (BR-62).
+. Das AG-Mitglied öffnet eine Frage.
+. Das System zeigt jede Version mit Inhalt, Status, Abschlusszähler und Meldungen; bei Meldungen zu Optionen auch die Option (BR-07, BR-63).
+. Das AG-Mitglied liest Kategorien, Freitexte und gegebenenfalls Kontaktdaten.
+. Das AG-Mitglied überarbeitet die Frage per Pull Request im Fragen-Repo, außerhalb des Systems.
+
+=== Extensions
+
+3a. Kontaktdaten wurden mit einer neuen Version gelöscht::
+. Das System zeigt die Meldung ohne Kontaktdaten und vermerkt die Löschung (BR-57).
+
+5a. Der Pull Request ist gemergt::
+. Beim nächsten Import entsteht eine neue Version im Status Draft (BR-06); weiter mit <<uc-03>>.
+
+[[uc-05]]
+== UC-05 Schwelle einstellen
+
+[horizontal]
+Primary Actor:: AG-Mitglied
+Level:: User Goal
+Stakeholders und Interessen::
+* AG Foundation: will die Empfindlichkeit an die Zahl der Teilnehmenden anpassen (PRD R4).
+Vorbedingungen:: Das AG-Mitglied ist angemeldet (BR-60).
+Minimalgarantie:: Ein ungültiger Wert ändert die Schwelle nicht.
+Trigger:: Das AG-Mitglied öffnet die Einstellungen.
+Nachbedingungen (Erfolg):: Die neue Schwelle gilt; jede Released-Version, die sie erreicht, ist Draft (BR-14, BR-16).
+
+=== Main Success Scenario
+
+. Das System zeigt die aktuelle Schwelle.
+. Das AG-Mitglied gibt einen neuen Wert ein und speichert.
+. Das System speichert den Wert und protokolliert die Änderung (BR-14, BR-65).
+. Das System setzt jede Released-Version, deren Meldungszähler die neue Schwelle erreicht, auf Draft (BR-16).
+
+=== Extensions
+
+2a. Der Wert ist keine ganze Zahl ab 1::
+. Das System zeigt den Fehler und speichert nichts (BR-14). Weiter mit Schritt 2.
+
+4a. Keine Released-Version erreicht die neue Schwelle::
+. Das System ändert keinen Status. Der Use Case endet erfolgreich.
+
+[[uc-06]]
+== UC-06 Fragenbestand aktualisieren
+
+[horizontal]
+Primary Actor:: AG-Mitglied (alternativ der tägliche Zeitplan, siehe <<suc-import>>)
+Level:: User Goal
+Stakeholders und Interessen::
+* AG Foundation: will gemergte Überarbeitungen sofort prüfen und freigeben.
+* Trainer: wollen ihre neuen Fragen in der App sehen.
+Vorbedingungen:: Das AG-Mitglied ist angemeldet (BR-60).
+Minimalgarantie:: Ein gescheiterter Import ändert keine Frage, keine Version und keinen Status.
+Trigger:: Das AG-Mitglied wählt „Jetzt importieren“.
+Nachbedingungen (Erfolg)::
+* Jede gültige Frage aus dem Repo ist mit ihrer aktuellen Version im System (BR-01, BR-06).
+* Jede ungültige Datei ist mit ihrem Fehler sichtbar (BR-02).
+
+=== Main Success Scenario
+
+. Das AG-Mitglied startet den Import.
+. Das System liest alle XML-Dateien aus `mock/questions/` und `pool/**/` vom Branch `main` (BR-01).
+. Das System prüft jede Datei gegen `exam.rng` (BR-02).
+. Das System berechnet für jede gültige Frage den Inhalts-Hash (BR-05).
+. Das System legt für neue Fragen eine erste Version an, für geänderte eine neue Version (BR-06, BR-08).
+. Das System zeigt das Ergebnis: neue Fragen, neue Versionen, entfernte Fragen, Fehler.
+
+=== Extensions
+
+1a. Ein Import läuft bereits::
+. Das System meldet den laufenden Import und startet keinen zweiten. Der Use Case endet.
+
+2a. GitHub ist nicht erreichbar::
+. Das System bricht den Import ab, ändert nichts und zeigt den Fehler (Minimalgarantie). Der Use Case endet.
+
+3a. Eine Datei ist ungültig::
+. Das System überspringt die Datei und vermerkt den Fehler (BR-02). Weiter mit Schritt 3 für die nächste Datei.
+
+3b. Zwei Dateien haben dieselbe `id`::
+. Das System überspringt beide und vermerkt den Konflikt (BR-04).
+
+5a. Eine bekannte Frage fehlt im Repo::
+. Das System markiert sie als entfernt (BR-09).

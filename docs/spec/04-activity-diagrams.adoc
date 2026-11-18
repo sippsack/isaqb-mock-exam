@@ -1,0 +1,257 @@
+= Activity-Diagramme zeigen jeden Ablauf mit allen Verzweigungen
+
+Jedes Diagramm deckt das Main Success Scenario und alle Extensions des zugehörigen Use Case ab.
+Die Nummern an den Verzweigungen verweisen auf die Extensions.
+
+== UC-01 Probeprüfung ablegen
+
+[plantuml, ad-uc01, svg]
+----
+@startuml
+|Kandidat|
+start
+if (Link zum Fortsetzen?) then (ja)
+  |System|
+  if (Prüfung vorhanden?) then (nein, 4b)
+    :Meldung "Prüfung existiert nicht";
+    stop
+  else (ja)
+    :Antworten wiederherstellen (BR-26);
+  endif
+else (nein)
+  |Kandidat|
+  :Sprache wählen (BR-21);
+  |System|
+  if (Released-Fragen in Sprache?) then (keine, 2a)
+    :Meldung "keine Prüfung möglich";
+    stop
+  else (n ≥ 1)
+    :min(40, n) Fragen ziehen (BR-20, 2b);
+    :Versionen festhalten (BR-22);
+    :Prüfung anlegen, Link zeigen (BR-25);
+  endif
+endif
+repeat
+  |System|
+  :Frage ohne Lösung zeigen (BR-27);
+  |Kandidat|
+  if (Problem melden? 4d) then (ja)
+    :UC-02 ausführen;
+  endif
+  :Antwort wählen;
+  |System|
+  if (Speichern erfolgreich?) then (nein, 4c)
+    :"nicht gespeichert" zeigen;
+    :erneut versuchen;
+  else (ja)
+  endif
+  |Kandidat|
+  if (unterbrechen? 4a) then (ja)
+    :Browser schließen;
+    stop
+  endif
+repeat while (abgeben?) is (nein)
+-> ja;
+|System|
+if (bereits abgegeben? 6b) then (ja)
+  :gespeichertes Ergebnis laden (BR-30);
+else (nein)
+  if (alle beantwortet? (BR-29)) then (nein, 6a)
+    :unbeantwortete Positionen nennen (BR-28);
+    detach
+  else (ja)
+    :bewerten (BR-40..BR-43);
+    :Antworten einfrieren (BR-30);
+    :Abschlusszähler +1 (BR-45);
+  endif
+endif
+:Ergebnis zeigen (BR-44);
+:um Feedback bitten (BR-55);
+stop
+@enduml
+----
+
+Bei 6a kehrt der Kandidat in die Fragenschleife zurück; das Diagramm zeigt das mit `detach`, um die Schleife lesbar zu halten.
+
+== UC-02 Problem zu einer Frage melden
+
+[plantuml, ad-uc02, svg]
+----
+@startuml
+|Kandidat|
+start
+:"Problem melden" an Frage oder Option;
+|System|
+:Formular zeigen (BR-51..BR-53);
+|Kandidat|
+repeat
+  :Kategorie, Freitext eingeben;
+  if (Kontaktdaten angeben? 2a) then (ja)
+    :Kontaktdaten + Einwilligung;
+  endif
+  :absenden;
+  |System|
+repeat while (Eingaben gültig?) is (nein, 3a)
+-> ja;
+:Meldung zur festgehaltenen Version speichern (BR-58);
+if (schon angerechnete Meldung\nin dieser Prüfung? 5a) then (ja)
+  :Zähler unverändert (BR-54);
+else (nein)
+  :Meldungszähler +1 (BR-15, BR-54);
+  if (aktuelle Version? 5c) then (nein)
+    :Status unverändert;
+  else (ja)
+    if (Released und Zähler ≥ Schwelle? 5b) then (ja)
+      :Version auf Draft (BR-13);
+      :protokollieren (BR-65);
+    else (nein)
+    endif
+  endif
+endif
+:Eingang bestätigen;
+stop
+@enduml
+----
+
+== UC-03 Draft-Version prüfen und freigeben
+
+[plantuml, ad-uc03, svg]
+----
+@startuml
+|AG-Mitglied|
+start
+:mit GitHub anmelden;
+|System|
+if (Mitglied im Admin-Team? (BR-60)) then (nein, 1a)
+  :Zugang verweigern (BR-61);
+  stop
+else (ja)
+endif
+:Fragenliste zeigen (BR-62);
+|AG-Mitglied|
+:nach Draft filtern, Frage öffnen;
+|System|
+:Version mit Lösung und Meldungen zeigen (BR-63);
+|AG-Mitglied|
+if (freigabereif? 4a) then (nein)
+  :Überarbeitung per Pull Request\n(außerhalb des Systems);
+  stop
+else (ja)
+  :freigeben;
+endif
+|System|
+if (aktuelle Version und\nFrage nicht entfernt? 5a) then (nein)
+  :Freigabe verweigern, Lage zeigen;
+  stop
+elseif (schon Released? 5b) then (ja)
+  :Status melden, nichts ändern;
+  stop
+else (Draft)
+  :Status Released (BR-12);
+  :protokollieren (BR-65);
+endif
+stop
+@enduml
+----
+
+== UC-04 Gemeldete Frage auswerten
+
+[plantuml, ad-uc04, svg]
+----
+@startuml
+|AG-Mitglied|
+start
+|System|
+:Fragenliste nach Meldungen sortiert (BR-62);
+|AG-Mitglied|
+:Frage öffnen;
+|System|
+:alle Versionen mit Meldungen zeigen (BR-07, BR-63);
+if (Kontaktdaten gelöscht? 3a) then (ja)
+  :Meldung ohne Kontakt, Löschung vermerkt (BR-57);
+else (nein)
+  :Kontaktdaten zeigen (BR-56);
+endif
+|AG-Mitglied|
+:Meldungen auswerten;
+:Pull Request im Fragen-Repo;
+if (Pull Request gemergt? 5a) then (ja)
+  |System|
+  :nächster Import legt neue Draft-Version an (BR-06);
+  :weiter mit UC-03;
+else (nein)
+endif
+stop
+@enduml
+----
+
+== UC-05 Schwelle einstellen
+
+[plantuml, ad-uc05, svg]
+----
+@startuml
+|AG-Mitglied|
+start
+|System|
+:aktuelle Schwelle zeigen;
+|AG-Mitglied|
+repeat
+  :neuen Wert eingeben, speichern;
+  |System|
+repeat while (ganze Zahl ≥ 1? (BR-14)) is (nein, 2a)
+-> ja;
+:Wert speichern, protokollieren (BR-65);
+if (Released-Versionen mit\nZähler ≥ Schwelle? 4a) then (ja)
+  :auf Draft setzen, protokollieren (BR-16);
+else (keine)
+endif
+stop
+@enduml
+----
+
+== UC-06 Fragenbestand aktualisieren und SUC-02 Import-Job
+
+[plantuml, ad-uc06, svg]
+----
+@startuml
+start
+if (Auslöser) then (AG-Mitglied)
+  if (Import läuft? 1a) then (ja)
+    :laufenden Import melden;
+    stop
+  endif
+else (täglicher Zeitplan)
+endif
+:Commit-SHA von main ermitteln;
+if (GitHub erreichbar? 2a) then (nein)
+  :Lauf failed, nichts ändern;
+  stop
+endif
+:XML-Dateien aus mock/questions und pool/** lesen (BR-01);
+while (nächste Datei?) is (ja)
+  if (gültig nach exam.rng\nund Zusatzprüfungen? 3a) then (nein)
+    :Datei überspringen, Fehler vermerken (BR-02);
+  else (ja)
+    :normalisieren, Hash bilden (BR-05);
+  endif
+endwhile (nein)
+if (doppelte id? 3b) then (ja)
+  :beide Dateien überspringen (BR-04);
+endif
+while (nächste gültige Frage?) is (ja)
+  if (id bekannt?) then (nein)
+    :Frage + Version anlegen;
+    :Status nach Ordner (BR-08);
+  elseif (Hash geändert?) then (ja)
+    :neue Version Draft, Zähler 0 (BR-06);
+    :Kontaktdaten alter Meldungen löschen (BR-57);
+  else (gleich)
+    :nichts ändern;
+  endif
+endwhile (nein)
+:fehlende Fragen als entfernt markieren (BR-09, 5a);
+:alles gemeinsam übernehmen;
+:Ergebnis zeigen;
+stop
+@enduml
+----

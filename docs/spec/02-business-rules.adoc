@@ -1,0 +1,255 @@
+= Die Regeln stehen als eine nummerierte Liste in EARS-Syntax
+
+Jede Regel ist genau eine Aussage in einem EARS-Muster, auf Deutsch formuliert:
+
+[horizontal]
+Ubiquitär:: „Das System soll …“
+Ereignis:: „Wenn <Auslöser>, soll das System …“
+Zustand:: „Während <Zustand>, soll das System …“
+Unerwünscht:: „Falls <Bedingung>, dann soll das System …“
+Optional:: „Wo <Merkmal>, soll das System …“
+
+Die Nummern sind nach Themen gruppiert; Lücken lassen Platz für spätere Regeln.
+Eine Regel ist der Vertrag, die Gherkin-Szenarien in <<acceptance>> sind der Beweis.
+
+== Import und Versionierung (BR-01 bis BR-10)
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-01]]BR-01
+|Das System soll jede Datei mit der Endung `.xml` unter `mock/questions/` und unter `pool/` samt Unterordnern vom Branch `main` des Repos `isaqb-org/foundation-exam-questions` importieren.
+|PRD M1, C1
+
+|[[BR-02]]BR-02
+|Falls eine XML-Datei nicht gegen `exam.rng` validiert, dann soll das System die Datei überspringen und sie mit Pfad und Fehlermeldung in der Admin-Ansicht zeigen.
+|PRD User Story Map
+
+|[[BR-03]]BR-03
+|Das System soll eine Frage an ihrem Attribut `id` erkennen.
+|PRD R6
+
+|[[BR-04]]BR-04
+|Falls zwei Dateien dieselbe `id` tragen, dann soll das System beide Dateien überspringen und den Konflikt in der Admin-Ansicht zeigen.
+|Spec-Entscheidung
+
+|[[BR-05]]BR-05
+|Das System soll die Version einer Frage als SHA-256-Hash über ihren normalisierten Inhalt bestimmen; die Normalisierung entfernt XML-Kommentare, das Element `history` und Leerraum-Unterschiede.
+|PRD R6, RK5
+
+|[[BR-06]]BR-06
+|Wenn der Import für eine bekannte Frage einen anderen Hash als den der aktuellen Version findet, soll das System eine neue Version im Status Draft mit Zählern auf null anlegen und sie zur aktuellen Version machen.
+|PRD R6
+
+|[[BR-07]]BR-07
+|Das System soll jede frühere Version mit Inhalt, Status, Abschlusszähler und Meldungen aufbewahren.
+|PRD R6, S3
+
+|[[BR-08]]BR-08
+|Wenn der Import eine Frage zum ersten Mal findet, soll das System ihre erste Version auf Released setzen, falls die Datei unter `mock/questions/` liegt, und sonst auf Draft.
+|PRD R2
+
+|[[BR-09]]BR-09
+|Falls eine bekannte Frage beim Import im Repo fehlt, dann soll das System sie als entfernt markieren, sie aus neuen Prüfungen ausschließen und ihre Historie behalten.
+|Spec-Entscheidung
+
+|[[BR-10]]BR-10
+|Das System soll den Import einmal täglich und zusätzlich auf Anforderung eines AG-Mitglieds ausführen.
+|Spec-Entscheidung
+|===
+
+== Status und Schwelle (BR-11 bis BR-16)
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-11]]BR-11
+|Das System soll jeder Version genau einen Status zuordnen: Draft oder Released.
+|PRD R1
+
+|[[BR-12]]BR-12
+|Wenn ein AG-Mitglied die aktuelle Draft-Version einer nicht entfernten Frage freigibt, soll das System ihren Status auf Released setzen.
+|PRD R3
+
+|[[BR-13]]BR-13
+|Wenn der Meldungszähler der aktuellen Released-Version einer Frage die Schwelle erreicht, soll das System die Version auf Draft setzen.
+|PRD R4
+
+|[[BR-14]]BR-14
+|Das System soll die Schwelle als ganze Zahl ab 1 führen, mit dem Startwert 3, änderbar durch ein AG-Mitglied.
+|PRD R4
+
+|[[BR-15]]BR-15
+|Das System soll eine Meldung zu einer Antwortoption wie eine Meldung zur ganzen Frage zählen.
+|PRD R5
+
+|[[BR-16]]BR-16
+|Wenn ein AG-Mitglied die Schwelle ändert, soll das System sofort jede aktuelle Released-Version, deren Meldungszähler die neue Schwelle erreicht, auf Draft setzen.
+|Spec-Entscheidung
+|===
+
+== Prüfung (BR-20 bis BR-31)
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-20]]BR-20
+|Wenn ein Kandidat eine Prüfung startet, soll das System zufällig min(40, n) Fragen ziehen, wobei n die Zahl der nicht entfernten Fragen ist, deren aktuelle Version Released ist und in der gewählten Sprache vorliegt.
+|PRD R7
+
+|[[BR-21]]BR-21
+|Das System soll Deutsch (`de`) und Englisch (`en`) als Prüfungssprache anbieten.
+|PRD M2
+
+|[[BR-22]]BR-22
+|Das System soll in einer Prüfung die Versionen festhalten, die beim Start gezogen wurden, auch wenn sich Status oder aktuelle Version später ändern.
+|Spec-Entscheidung
+
+|[[BR-24]]BR-24
+|Das System soll Kandidaten ohne Anmeldung eine Prüfung ablegen lassen.
+|PRD M2, R10
+
+|[[BR-25]]BR-25
+|Das System soll jede Prüfung auf dem Server speichern und an einer zufälligen Session-ID mit mindestens 128 Bit Entropie erkennen, die im Link zum Fortsetzen steht.
+|PRD S1
+
+|[[BR-26]]BR-26
+|Wenn ein Kandidat eine Antwort wählt, soll das System sie in der Prüfung speichern; beim Öffnen des Links zum Fortsetzen soll es alle gespeicherten Antworten wiederherstellen.
+|PRD S1
+
+|[[BR-27]]BR-27
+|Während eine Prüfung nicht abgegeben ist, soll das System weder Lösungen noch Erklärungen noch Punkte an das Frontend ausliefern.
+|PRD M3
+
+|[[BR-28]]BR-28
+|Falls ein Kandidat eine Prüfung mit mindestens einer unbeantworteten Frage abgeben will, dann soll das System die Abgabe verweigern und die Positionen der unbeantworteten Fragen nennen.
+|PRD M3
+
+|[[BR-29]]BR-29
+|Das System soll eine Auswahlfrage als beantwortet werten, sobald mindestens eine Option gewählt ist, und eine Zuordnungsfrage, sobald mindestens eine Aussage einer Kategorie zugeordnet ist.
+|Spec-Entscheidung
+
+|[[BR-30]]BR-30
+|Wenn ein Kandidat eine Prüfung abgibt, soll das System ihre Antworten unveränderlich machen und bei jeder weiteren Abgabe dasselbe Ergebnis liefern.
+|PRD M3
+
+|[[BR-31]]BR-31
+|Das System soll eine nicht abgegebene Prüfung 30 Tage nach ihrer letzten Änderung löschen.
+|Spec-Entscheidung
+|===
+
+== Bewertung (BR-40 bis BR-46)
+
+Die Regeln BR-40 bis BR-43 geben die offiziellen Prüfungsregeln wieder.
+Eine `pickQuestion` mit genau einer korrekten Option ist eine A-Frage, mit mehreren eine P-Frage; eine `categoryQuestion` ist eine K-Frage.
+`p` ist die Punktzahl der Frage (Attribut `points`).
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-40]]BR-40
+|Das System soll eine A-Frage mit `p` Punkten bewerten, wenn genau die korrekte Option gewählt ist, und sonst mit 0 Punkten.
+|Prüfungsregeln
+
+|[[BR-41]]BR-41
+|Das System soll eine P-Frage mit `max(0, p × (r − f) / n)` bewerten, wobei `n` die Zahl der korrekten Optionen, `r` die Zahl der gewählten korrekten und `f` die Zahl der gewählten falschen Optionen ist; falls mehr als `n` Optionen gewählt sind, dann mit 0 Punkten.
+|Prüfungsregeln
+
+|[[BR-42]]BR-42
+|Das System soll eine K-Frage mit `max(0, p × (r − f) / n)` bewerten, wobei `n` die Zahl der Aussagen, `r` die Zahl der richtig und `f` die Zahl der falsch zugeordneten Aussagen ist; offen gelassene Aussagen zählen weder als `r` noch als `f`.
+|Prüfungsregeln
+
+|[[BR-43]]BR-43
+|Das System soll eine Prüfung als bestanden werten, wenn die Summe der erreichten Punkte mindestens 60 % der Summe der erreichbaren Punkte beträgt.
+|Prüfungsregeln
+
+|[[BR-44]]BR-44
+|Wenn ein Kandidat eine Prüfung abgibt, soll das System erreichte Punkte, erreichbare Punkte, Prozentwert und „bestanden/nicht bestanden“ zeigen und zu jeder Frage die erreichten Punkte, die korrekte Lösung und die Erklärung, falls vorhanden.
+|PRD M3, Runde 8
+
+|[[BR-45]]BR-45
+|Wenn ein Kandidat eine Prüfung abgibt, soll das System den Abschlusszähler jeder Version in dieser Prüfung um 1 erhöhen.
+|PRD R9, SC2
+
+|[[BR-46]]BR-46
+|Das System soll Punkte als exakte Brüche rechnen und erst bei der Anzeige auf zwei Nachkommastellen runden.
+|Spec-Entscheidung
+|===
+
+== Meldungen (BR-50 bis BR-58)
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-50]]BR-50
+|Das System soll Meldungen zu jeder Frage einer Prüfung annehmen, während die Prüfung läuft und nachdem sie abgegeben ist.
+|PRD M4
+
+|[[BR-51]]BR-51
+|Das System soll für jede Meldung genau eine Kategorie verlangen: `unclear` (unklar), `wrong` (fachlich falsch), `translation` (Übersetzung), `typo` (Tippfehler) oder `other` (Sonstiges).
+|Spec-Entscheidung
+
+|[[BR-52]]BR-52
+|Das System soll einen optionalen Freitext von höchstens 2000 Zeichen annehmen.
+|PRD User Story Map
+
+|[[BR-53]]BR-53
+|Wo ein Kandidat Kontaktdaten angibt, soll das System sie nur mit ausdrücklicher Einwilligung speichern, mit höchstens 100 Zeichen für den Namen und 200 Zeichen für die Kontaktangabe.
+|PRD R10
+
+|[[BR-54]]BR-54
+|Das System soll pro Prüfung höchstens eine Meldung je Frage auf den Meldungszähler anrechnen.
+|Spec-Entscheidung, PRD RK2
+
+|[[BR-55]]BR-55
+|Wenn ein Kandidat eine Prüfung abgegeben hat, soll das System ihn auf der Ergebnisseite um Meldungen zu unklaren oder fehlerhaften Fragen bitten.
+|PRD S2
+
+|[[BR-56]]BR-56
+|Das System soll Kontaktdaten nur angemeldeten AG-Mitgliedern zeigen.
+|PRD R10
+
+|[[BR-57]]BR-57
+|Wenn das System eine neue Version einer Frage anlegt, soll es die Kontaktdaten aller Meldungen zu früheren Versionen dieser Frage löschen.
+|PRD R10
+
+|[[BR-58]]BR-58
+|Das System soll jede Meldung der Version zuordnen, die in der Prüfung des Kandidaten festgehalten ist.
+|PRD R6
+|===
+
+== Admin-Zugang und Protokoll (BR-60 bis BR-65)
+
+[cols="1,6,2"]
+|===
+|ID |Regel |Quelle
+
+|[[BR-60]]BR-60
+|Das System soll AG-Mitglieder per GitHub-OAuth anmelden und nur Mitgliedern eines konfigurierten Teams der Organisation `isaqb-org` Zugang zur Admin-Ansicht geben.
+|PRD RK3, Spec-Entscheidung
+
+|[[BR-61]]BR-61
+|Falls ein angemeldetes GitHub-Konto nicht zum konfigurierten Team gehört, dann soll das System den Zugang zur Admin-Ansicht verweigern.
+|PRD RK3
+
+|[[BR-62]]BR-62
+|Das System soll AG-Mitgliedern alle Fragen mit `id`, Herkunftsordner, Status der aktuellen Version, Abschlusszähler, Meldungszähler und Entfernt-Markierung zeigen, dazu die Fehler des letzten Imports.
+|PRD M5
+
+|[[BR-63]]BR-63
+|Das System soll AG-Mitgliedern zu jeder Frage alle Versionen mit vollständigem Inhalt, Lösung, Status, Zählern und Meldungen zeigen.
+|PRD M5, S3
+
+|[[BR-64]]BR-64
+|Das System soll eine Admin-Anmeldung 8 Stunden nach dem Login beenden.
+|Spec-Entscheidung
+
+|[[BR-65]]BR-65
+|Das System soll jede Statusänderung und jede Änderung der Schwelle mit Zeitpunkt, altem und neuem Wert und Auslöser (GitHub-Login oder „automatisch“) protokollieren.
+|Spec-Entscheidung
+|===

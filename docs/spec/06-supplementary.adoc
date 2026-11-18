@@ -1,0 +1,371 @@
+= Ergänzende Spezifikationen legen Daten, Zustände und Verträge fest
+
+== Das Entity-Modell trennt Frage, Version und Prüfung
+
+Eine Frage hat viele Versionen; genau eine davon ist die aktuelle.
+Eine Prüfung hält über ihre Positionen bestimmte Versionen fest (BR-22).
+Meldungen und Abschlusszähler hängen an der Version, nicht an der Frage (BR-06, BR-58).
+
+[plantuml, entity-model, svg]
+----
+@startuml
+hide circle
+skinparam linetype ortho
+
+entity Question {
+  * questionId : Text <<XML id>>
+  --
+  * sourcePath : Text
+  * removed : Boolean
+  * currentVersionId : VersionId
+}
+
+entity QuestionVersion {
+  * versionId : VersionId
+  --
+  * questionId : Text
+  * hash : SHA-256
+  * type : pick | category
+  * points : 1..2
+  * content : normalisiertes XML
+  * languages : Set<de|en|…>
+  * status : Draft | Released
+  * completions : Integer ≥ 0
+  * countedReports : Integer ≥ 0
+  * createdAt : Timestamp
+  * importRunId : ImportRunId
+}
+
+entity Exam {
+  * sessionId : 128-Bit-Zufallswert
+  --
+  * language : de | en
+  * createdAt : Timestamp
+  * lastModifiedAt : Timestamp
+  submittedAt : Timestamp
+  scoreAchieved : Bruch
+  scoreMax : Integer
+  passed : Boolean
+}
+
+entity ExamItem {
+  * sessionId
+  * position : 1..40
+  --
+  * versionId : VersionId
+  answer : Auswahl | Zuordnung
+  pointsAchieved : Bruch
+  reportCounted : Boolean
+}
+
+entity Report {
+  * reportId
+  --
+  * versionId : VersionId
+  * sessionId
+  * position
+  optionIdentifier : Text
+  * category : unclear | wrong | translation | typo | other
+  text : Text ≤ 2000
+  contactName : Text ≤ 100
+  contact : Text ≤ 200
+  * contactDeleted : Boolean
+  * counted : Boolean
+  * createdAt : Timestamp
+}
+
+entity Settings {
+  * reportThreshold : 1..1000 = 3
+}
+
+entity AuditEntry {
+  * auditId
+  --
+  * at : Timestamp
+  * actor : GitHub-Login | "automatisch"
+  * action : release | demote | threshold
+  questionId
+  versionId
+  * oldValue : Text
+  * newValue : Text
+}
+
+entity ImportRun {
+  * importRunId
+  --
+  * trigger : schedule | manual
+  triggeredBy : GitHub-Login
+  commitSha : Text
+  * status : running | succeeded | failed
+  * startedAt : Timestamp
+  finishedAt : Timestamp
+  fileErrors : Liste<Pfad, Code, Meldung>
+}
+
+Question ||--|{ QuestionVersion : hat
+Question ||--|| QuestionVersion : aktuelle
+Exam ||--|{ ExamItem : enthält
+ExamItem }o--|| QuestionVersion : hält fest
+Report }o--|| QuestionVersion : betrifft
+Report }o--|| ExamItem : stammt aus
+AuditEntry }o--o| QuestionVersion : betrifft
+ImportRun ||--o{ QuestionVersion : legt an
+@enduml
+----
+
+Invarianten des Modells:
+
+* Jede Frage hat genau eine aktuelle Version, und diese gehört zur Frage.
+* `countedReports` einer Version ist gleich der Zahl ihrer Meldungen mit `counted = true` (BR-54).
+* Pro `ExamItem` hat höchstens eine Meldung `counted = true` (BR-54).
+* `completions` einer Version ist gleich der Zahl der abgegebenen Prüfungen, die sie festhalten (BR-45).
+* Ist `submittedAt` gesetzt, sind `scoreAchieved`, `scoreMax`, `passed` und jedes `pointsAchieved` gesetzt und ändern sich nicht mehr (BR-30).
+* Eine Version, die nicht die aktuelle ist, wechselt ihren Status nie mehr.
+
+== Zustandsautomaten
+
+=== Status einer Version
+
+[plantuml, sm-version, svg]
+----
+@startuml
+hide empty description
+[*] --> Released : Erstimport aus mock/questions/ (BR-08)
+[*] --> Draft : Erstimport aus pool/ (BR-08)\noder neue Version (BR-06)
+Draft --> Released : AG-Mitglied gibt frei (BR-12)\n[aktuelle Version, Frage nicht entfernt]
+Released --> Draft : Meldungszähler ≥ Schwelle (BR-13)\noder Schwelle gesenkt (BR-16)
+Draft --> Superseded : neue Version importiert (BR-06)
+Released --> Superseded : neue Version importiert (BR-06)
+Superseded : historisch, Status eingefroren
+Superseded : Kontaktdaten gelöscht (BR-57)
+@enduml
+----
+
+`Superseded` ist kein dritter Status im Sinne von BR-11.
+Er beschreibt, dass eine Version nicht mehr aktuell ist; sie behält ihren letzten Status Draft oder Released zur Anzeige in der Historie.
+
+=== Lebenszyklus einer Prüfung
+
+[plantuml, sm-exam, svg]
+----
+@startuml
+hide empty description
+[*] --> InProgress : POST /api/exams (BR-25)
+InProgress --> InProgress : Antwort speichern (BR-26)\nMeldung abgeben (BR-50)
+InProgress --> InProgress : Abgabe mit offenen Fragen\nabgelehnt (BR-28)
+InProgress --> Submitted : Abgabe, alle beantwortet (BR-29, BR-30)
+InProgress --> [*] : 30 Tage ohne Änderung,\ngelöscht (BR-31)
+Submitted --> Submitted : Meldung abgeben (BR-50)\nerneute Abgabe liefert Ergebnis (BR-30)
+@enduml
+----
+
+Abgegebene Prüfungen löscht das System nicht; sie enthalten keine personenbezogenen Daten.
+Kontaktdaten stehen in Meldungen und folgen BR-57.
+
+=== Lebenszyklus einer Frage
+
+[plantuml, sm-question, svg]
+----
+@startuml
+hide empty description
+[*] --> Present : Erstimport
+Present --> Removed : Datei fehlt beim Import (BR-09)
+Removed --> Present : Datei mit derselben id\nwieder vorhanden
+@enduml
+----
+
+[[contracts]]
+== Die Interface-Verträge legen die DTOs der HTTP-APIs fest
+
+Die DTOs sind die einzigen Daten, die die Schnittstelle überqueren.
+Sie sind keine Abbildung der Entitäten: `ExamDto` enthält keine Lösungen (BR-27), `AdminQuestionDto` ist nur über die Admin-API erreichbar (BR-56).
+
+=== ExamDto
+
+[source,json]
+----
+{
+  "sessionId": "x7Kq…",
+  "resumeUrl": "https://…/#/exam/x7Kq…",
+  "language": "de",
+  "status": "in_progress",
+  "questions": [
+    {
+      "position": 1,
+      "questionId": "Q-17-13-03",
+      "type": "pick",
+      "points": 2,
+      "stem": "Welche der folgenden Techniken …",
+      "options": [ { "identifier": "A", "text": "Flussdiagramme" } ]
+    },
+    {
+      "position": 2,
+      "questionId": "Q-17-13-02",
+      "type": "category",
+      "points": 1,
+      "stem": "…",
+      "categories": [ { "label": "a", "text": "…" } ],
+      "statements": [ { "identifier": "A", "text": "…" } ]
+    }
+  ],
+  "answers": {
+    "1": { "selected": ["A", "B"] },
+    "2": { "assignments": { "A": "a" } }
+  },
+  "result": null
+}
+----
+
+* `status`: `in_progress` oder `submitted`.
+* `answers` enthält nur Positionen mit gespeicherter Antwort.
+* `result` ist `null`, solange die Prüfung nicht abgegeben ist, sonst ein `ResultDto`.
+* `versionId` erscheint nicht; das Frontend braucht sie nicht.
+
+=== ResultDto
+
+[source,json]
+----
+{
+  "scoreAchieved": { "numerator": 95, "denominator": 3, "display": "31.67" },
+  "scoreMax": 52,
+  "percent": "60.90",
+  "passed": true,
+  "items": [
+    {
+      "position": 1,
+      "pointsAchieved": { "numerator": 2, "denominator": 1, "display": "2.00" },
+      "correctOptions": ["A", "B", "D", "F"],
+      "explanation": "Flussdiagramme, Aktivitätsdiagramme …"
+    },
+    {
+      "position": 2,
+      "pointsAchieved": { "numerator": 1, "denominator": 3, "display": "0.33" },
+      "correctAssignments": { "A": "a", "B": "a", "C": "b" },
+      "explanation": null
+    }
+  ]
+}
+----
+
+Brüche sind gekürzt; `display` ist auf zwei Nachkommastellen gerundet (BR-46).
+
+=== AdminQuestionDto
+
+[source,json]
+----
+{
+  "questionId": "AG-05",
+  "sourcePath": "pool/active-group/active-group-05.xml",
+  "removed": false,
+  "versions": [
+    {
+      "versionId": "ver_…",
+      "hash": "9f2c…",
+      "current": true,
+      "status": "Draft",
+      "createdAt": "2026-11-20T03:00:12Z",
+      "completions": 0,
+      "countedReports": 0,
+      "languages": ["de", "en"],
+      "content": { "type": "pick", "points": 1, "stem": { "de": "…", "en": "…" },
+                   "options": [ { "identifier": "A", "correct": false, "text": { "de": "…", "en": "…" } } ],
+                   "explanation": null,
+                   "learningGoals": [ { "curriculumVersion": "2025.1", "lg": "01-05" } ] },
+      "reports": [
+        { "reportId": "rep_…", "createdAt": "…", "optionIdentifier": "C",
+          "category": "unclear", "text": "…", "counted": true,
+          "contactName": null, "contact": null, "contactDeleted": true }
+      ],
+      "audit": [
+        { "at": "…", "actor": "automatisch", "action": "demote",
+          "oldValue": "Released", "newValue": "Draft" }
+      ]
+    }
+  ]
+}
+----
+
+Versionen stehen neueste zuerst.
+
+[[validation]]
+== Validierungsregeln
+
+Das Backend prüft jede Eingabe; das Frontend prüft dieselben Regeln nur zur Bequemlichkeit.
+
+[cols="2,4,2,1"]
+|===
+|Feld |Regel |Fehlercode |BR
+
+|`sessionId` (Pfad)
+|Base64url, genau 22 Zeichen (128 Bit); andere Werte gelten als unbekannt
+|`EXAM_NOT_FOUND`
+|BR-25
+
+|`language`
+|Pflicht; `de` oder `en`
+|`INVALID_LANGUAGE`
+|BR-21
+
+|`position` (Pfad, Body)
+|ganze Zahl von 1 bis Anzahl der Fragen der Prüfung
+|`POSITION_NOT_FOUND`
+|–
+
+|`selected`
+|Liste von `identifier` der festgehaltenen Version, ohne Duplikate; nur bei Auswahlfragen
+|`INVALID_ANSWER`
+|BR-26
+
+|`assignments`
+|Objekt; Schlüssel sind `identifier` von Aussagen, Werte sind `label` von Kategorien der festgehaltenen Version; nur bei Zuordnungsfragen
+|`INVALID_ANSWER`
+|BR-26
+
+|`category`
+|Pflicht; `unclear`, `wrong`, `translation`, `typo`, `other`
+|`INVALID_REPORT`
+|BR-51
+
+|`text`
+|optional; höchstens 2000 Unicode-Zeichen nach Trimmen
+|`INVALID_REPORT`
+|BR-52
+
+|`optionIdentifier`
+|optional; `identifier` einer Option oder Aussage der festgehaltenen Version
+|`INVALID_REPORT`
+|BR-15
+
+|`contact.consent`
+|Pflicht und `true`, sobald `contact` vorhanden ist
+|`INVALID_REPORT`
+|BR-53
+
+|`contact.name`
+|optional; höchstens 100 Zeichen; mindestens eines von `name` und `contact` gefüllt
+|`INVALID_REPORT`
+|BR-53
+
+|`contact.contact`
+|optional; höchstens 200 Zeichen; freie Angabe (E-Mail, Profil-URL)
+|`INVALID_REPORT`
+|BR-53
+
+|`reportThreshold`
+|Pflicht; ganze Zahl von 1 bis 1000
+|`INVALID_THRESHOLD`
+|BR-14
+
+|OAuth `state`
+|Pflicht; gleich dem Wert im Cookie aus `/auth/login`
+|`INVALID_OAUTH_STATE`
+|BR-60
+
+|Query `status`, `removed`, `sort`
+|nur die in SUC-09 genannten Werte
+|`INVALID_QUERY`
+|BR-62
+|===
+
+Alle Texte, die das Frontend anzeigt, stammen aus dem Fragen-Repo oder von Kandidaten.
+Das Frontend gibt sie als Text aus und nie als HTML.

@@ -1,0 +1,108 @@
+= Spec: iSAQB Foundation Mock-Exam mit Community-Feedback
+:toc: left
+:toclevels: 3
+:sectnums:
+:revdate: 2026-11-18
+:status: Entwurf zur Review durch die AG Foundation
+
+[abstract]
+Diese Spec setzt das PRD (`docs/prd.adoc`) in prüfbare Anforderungen um.
+Sie enthält die Use Cases der Personas, die Regeln als nummerierte BR-Liste in EARS-Syntax, die System Use Cases jeder technischen Schnittstelle, Activity-Diagramme, Gherkin-Akzeptanzkriterien sowie Entity-Modell, Zustandsautomaten und Validierungsregeln.
+
+== Die Spec verweist auf ihre Quellen und markiert eigene Entscheidungen
+
+Jede Regel nennt ihre Quelle.
+`PRD Rn`, `PRD Mn`, `PRD Sn` und `PRD RKn` verweisen auf `docs/prd.adoc`.
+`Prüfungsregeln` verweist auf `exam-info/examination-rules-de.docx` im Repo `isaqb-org/foundation-exam-questions`.
+`exam.rng` verweist auf das XML-Schema im selben Repo.
+
+Manche Regeln stehen nicht im PRD, weil die Discovery sie nicht berührt hat.
+Diese Regeln sind mit *Spec-Entscheidung* markiert und in <<spec-decisions>> gesammelt.
+Der Product Owner bestätigt oder verwirft sie im Review.
+
+Die Spec benutzt die Begriffe aus dem PRD:
+
+[horizontal]
+Frage:: eine Prüfungsfrage, erkannt an ihrer `id` aus dem XML
+Version:: ein bestimmter Inhalt einer Frage, erkannt am Inhalts-Hash
+Status:: *Draft* oder *Released*, gilt für eine Version
+Prüfung:: eine Session mit bis zu 40 Fragen, die ein Kandidat ablegt
+Meldung:: eine Problemmeldung eines Kandidaten zu einer Frage oder Antwortoption
+Schwelle:: Anzahl Meldungen, ab der eine Released-Version auf Draft zurückfällt
+AG-Mitglied:: Mitglied der AG Foundation mit Zugang zur Admin-Ansicht
+Kandidat:: anonyme Person, die eine Prüfung ablegt
+
+include::01-use-cases.adoc[leveloffset=+1]
+
+include::02-business-rules.adoc[leveloffset=+1]
+
+include::03-system-use-cases.adoc[leveloffset=+1]
+
+include::04-activity-diagrams.adoc[leveloffset=+1]
+
+include::05-acceptance-criteria.adoc[leveloffset=+1]
+
+include::06-supplementary.adoc[leveloffset=+1]
+
+[[spec-decisions]]
+== Spec-Entscheidungen warten auf die Bestätigung des Product Owners
+
+Diese Regeln füllen Lücken, die das PRD offen lässt.
+Jede hat einen Grund; keiner stammt aus der Discovery.
+
+[cols="1,4,4"]
+|===
+|Regel |Entscheidung |Grund
+
+|BR-04
+|Doppelte `id` in zwei Dateien: beide Dateien werden übersprungen.
+|Eine Frage darf nicht zwei Inhalte haben; welcher richtig ist, weiß nur die AG.
+
+|BR-09
+|Eine Frage, die aus dem Repo verschwindet, erscheint in keiner neuen Prüfung mehr; ihre Historie bleibt.
+|Die AG soll Fragen per Pull Request entfernen können, ohne Feedback zu verlieren.
+
+|BR-10
+|Der Import läuft täglich und auf Knopfdruck.
+|Die Discovery hat den Zeitpunkt offen gelassen (Runde 14).
+
+|BR-16
+|Senkt ein AG-Mitglied die Schwelle, prüft das System alle Released-Versionen sofort.
+|Sonst hinge der Status davon ab, ob zufällig noch eine Meldung eingeht.
+
+|BR-22
+|Eine Prüfung hält die Versionen fest, die beim Start gezogen wurden.
+|Bewertung und Meldungen müssen sich auf den Inhalt beziehen, den der Kandidat gesehen hat.
+
+|BR-29
+|Eine Frage gilt als beantwortet, sobald mindestens eine Auswahl getroffen ist.
+|Die Prüfungsregeln erlauben offen gelassene Aussagen bei K-Fragen.
+
+|BR-31
+|Nicht abgegebene Prüfungen löscht das System 30 Tage nach der letzten Änderung.
+|Datensparsamkeit; ein Kandidat setzt eine Prüfung in der Regel binnen Tagen fort.
+
+|BR-46
+|Punkte werden als exakte Brüche gerechnet und erst für die Anzeige gerundet.
+|K- und P-Fragen ergeben Drittel; gerundete Zwischensummen könnten „bestanden“ an der 60-%-Grenze verfälschen.
+
+|BR-51
+|Kategorien einer Meldung: unklar, fachlich falsch, Übersetzung, Tippfehler, Sonstiges.
+|Vorschlag aus Runde 8; das PRD nennt nur „Kategorie“.
+
+|BR-54
+|Pro Prüfung zählt höchstens eine Meldung je Frage für die Schwelle.
+|Mindert RK2: Eine Person kann eine Frage nicht mit einer einzigen Prüfung aus dem Pool werfen.
+
+|BR-60
+|Admin ist, wer Mitglied eines konfigurierten Teams in `isaqb-org` ist.
+|Vorschlag aus Runde 13; der Spike zu RK3 muss das bestätigen.
+
+|BR-64
+|Eine Admin-Anmeldung läuft nach 8 Stunden ab.
+|Begrenzt den Schaden eines gestohlenen Session-Cookies.
+
+|BR-65
+|Das System protokolliert jede Statusänderung mit Zeitpunkt und Auslöser.
+|Die AG muss nachvollziehen können, warum eine Frage aus der Prüfung verschwand.
+|===

@@ -1,0 +1,521 @@
+[[acceptance]]
+= Gherkin-Szenarien beweisen jede Regel
+
+Jedes Szenario trägt die Tags des Use Case und der Regeln, die es beweist.
+Jede Extension hat mindestens ein Szenario; die Extension steht im Szenarionamen.
+Die Szenarien sind so formuliert, dass sie später unverändert als `.feature`-Dateien laufen können.
+
+== UC-01 Probeprüfung ablegen
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-01 Probeprüfung ablegen
+
+  Grundlage:
+    Angenommen der Fragenbestand enthält 50 Fragen mit aktueller Version "Released" in "de" und "en"
+
+  @UC-01 @BR-20 @BR-21 @BR-22 @BR-24 @BR-25 @BR-27
+  Szenario: MSS – Prüfung starten zieht 40 Fragen ohne Lösungen
+    Wenn ein Kandidat ohne Anmeldung eine Prüfung in "de" startet
+    Dann enthält die Prüfung genau 40 verschiedene Fragen
+    Und jede Frage ist eine Released-Version in "de"
+    Und die Antwort enthält einen Link zum Fortsetzen mit einer Session-ID von mindestens 128 Bit
+    Und die Antwort enthält keine Lösung, keine Erklärung und keine Punkte je Option
+
+  @UC-01 @BR-29 @BR-30 @BR-43 @BR-44 @BR-45
+  Szenario: MSS – Abgabe nach vollständiger Beantwortung zeigt das Ergebnis
+    Angenommen ein Kandidat hat eine Prüfung gestartet und alle Fragen beantwortet
+    Wenn er die Prüfung abgibt
+    Dann zeigt das System erreichte Punkte, erreichbare Punkte, Prozentwert und "bestanden" oder "nicht bestanden"
+    Und zu jeder Frage die erreichten Punkte, die korrekte Lösung und die Erklärung, falls vorhanden
+    Und der Abschlusszähler jeder Version in der Prüfung ist um 1 gestiegen
+    Und weitere Antworten auf diese Prüfung werden mit "EXAM_SUBMITTED" abgelehnt
+
+  @UC-01 @BR-55
+  Szenario: MSS – Ergebnisseite bittet um Feedback
+    Angenommen ein Kandidat hat eine Prüfung abgegeben
+    Wenn er die Ergebnisseite sieht
+    Dann bittet das System ihn, unklare oder fehlerhafte Fragen zu melden
+
+  @UC-01 @BR-20
+  Szenario: Extension 2a – keine Released-Frage in der Sprache
+    Angenommen keine Frage hat eine aktuelle Released-Version in "en"
+    Wenn ein Kandidat eine Prüfung in "en" startet
+    Dann antwortet das System mit Status 503 und Code "NO_QUESTIONS_AVAILABLE"
+
+  @UC-01 @BR-21
+  Szenario: Nicht angebotene Sprache
+    Wenn ein Kandidat eine Prüfung in "zh" startet
+    Dann antwortet das System mit Status 422 und Code "INVALID_LANGUAGE"
+
+  @UC-01 @BR-20
+  Szenario: Extension 2b – weniger als 40 Released-Fragen
+    Angenommen genau 38 Fragen haben eine aktuelle Released-Version in "de"
+    Wenn ein Kandidat eine Prüfung in "de" startet
+    Dann enthält die Prüfung genau diese 38 Fragen
+
+  @UC-01 @BR-20 @BR-09
+  Szenario: Entfernte und Draft-Fragen werden nicht gezogen
+    Angenommen 38 Fragen sind Released, 2 Fragen sind Draft und 1 Released-Frage ist als entfernt markiert
+    Wenn ein Kandidat eine Prüfung in "de" startet
+    Dann enthält die Prüfung genau 37 Fragen
+    Und keine davon ist Draft oder entfernt
+
+  @UC-01 @BR-25 @BR-26
+  Szenario: Extension 4a – Prüfung auf einem anderen Gerät fortsetzen
+    Angenommen ein Kandidat hat in einer Prüfung 12 Fragen beantwortet
+    Wenn er den Link zum Fortsetzen in einem anderen Browser öffnet
+    Dann zeigt das System dieselben Fragen in derselben Reihenfolge
+    Und die 12 Antworten sind wiederhergestellt
+
+  @UC-01 @BR-31
+  Szenario: Extension 4b – gelöschte Prüfung
+    Angenommen eine Prüfung wurde vor 31 Tagen zuletzt geändert und nicht abgegeben
+    Wenn der tägliche Aufräumlauf stattgefunden hat
+    Und ein Kandidat den Link zum Fortsetzen öffnet
+    Dann antwortet das System mit Status 404 und Code "EXAM_NOT_FOUND"
+    Und das Frontend bietet eine neue Prüfung an
+
+  @UC-01 @BR-31
+  Szenario: Extension 4b – unbekannte Session-ID
+    Wenn ein Kandidat einen Link mit einer unbekannten Session-ID öffnet
+    Dann antwortet das System mit Status 404 und Code "EXAM_NOT_FOUND"
+
+  @UC-01 @BR-26
+  Szenario: Extension 4c – Speichern scheitert
+    Angenommen ein Kandidat hat eine Prüfung geöffnet und der Server ist nicht erreichbar
+    Wenn er eine Antwort wählt
+    Dann zeigt das Frontend die Antwort als "nicht gespeichert"
+    Und das Frontend wiederholt das Speichern, bis der Server antwortet
+    Und die Abgabe ist gesperrt, solange eine Antwort nicht gespeichert ist
+
+  @UC-01 @UC-02 @BR-50
+  Szenario: Extension 4d – Problem während der Prüfung melden
+    Angenommen ein Kandidat bearbeitet Position 5 einer laufenden Prüfung
+    Wenn er ein Problem der Kategorie "unclear" zu Position 5 meldet
+    Dann nimmt das System die Meldung an
+    Und der Kandidat kann seine Antwort auf Position 5 danach weiter ändern
+
+  @UC-01 @BR-28 @BR-29
+  Szenario: Extension 6a – Abgabe mit unbeantworteten Fragen
+    Angenommen ein Kandidat hat alle Fragen außer Position 3 und 17 beantwortet
+    Wenn er die Prüfung abgibt
+    Dann antwortet das System mit Status 422 und Code "UNANSWERED_QUESTIONS"
+    Und die Antwort nennt die Positionen 3 und 17
+    Und kein Abschlusszähler hat sich verändert
+
+  @UC-01 @BR-30 @BR-45
+  Szenario: Extension 6b – doppelte Abgabe
+    Angenommen ein Kandidat hat eine Prüfung mit 31,5 von 52 Punkten abgegeben
+    Wenn er die Prüfung in einem zweiten Tab erneut abgibt
+    Dann zeigt das System dasselbe Ergebnis mit 31,5 von 52 Punkten
+    Und die Abschlusszähler sind nur einmal gestiegen
+
+  @UC-01 @BR-22
+  Szenario: Laufende Prüfung behält ihre Versionen
+    Angenommen ein Kandidat hat eine Prüfung mit Frage "AG-01" in Version "v1" gestartet
+    Und ein Import hat danach Version "v2" von "AG-01" angelegt
+    Wenn der Kandidat die Prüfung fortsetzt und abgibt
+    Dann zeigt und bewertet das System "AG-01" in Version "v1"
+    Und der Abschlusszähler von "v1" steigt, der von "v2" nicht
+
+  @UC-01 @BR-29
+  Szenario: Eine teilweise zugeordnete K-Frage gilt als beantwortet
+    Angenommen eine Prüfung enthält an Position 4 eine K-Frage mit 3 Aussagen
+    Und alle anderen Fragen sind beantwortet
+    Und der Kandidat hat an Position 4 nur eine Aussage zugeordnet
+    Wenn er die Prüfung abgibt
+    Dann nimmt das System die Abgabe an
+----
+
+== Bewertung
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: Bewertung nach den offiziellen Prüfungsregeln
+
+  @UC-01 @BR-40
+  Szenariogrundriss: A-Frage
+    Angenommen eine A-Frage mit 2 Punkten und der korrekten Option "B"
+    Wenn der Kandidat <Auswahl> wählt
+    Dann erhält er <Punkte> Punkte
+
+    Beispiele:
+      | Auswahl | Punkte |
+      | B       | 2      |
+      | C       | 0      |
+      | B, C    | 0      |
+
+  @UC-01 @BR-41
+  Szenariogrundriss: P-Frage mit 2 korrekten Optionen
+    Angenommen eine P-Frage mit 2 Punkten und den korrekten Optionen "A" und "C"
+    Wenn der Kandidat <Auswahl> wählt
+    Dann erhält er <Punkte> Punkte
+
+    Beispiele:
+      | Auswahl  | Punkte |
+      | A, C     | 2      |
+      | A        | 1      |
+      | A, B     | 0      |
+      | B        | 0      |
+      | A, B, C  | 0      |
+
+  @UC-01 @BR-42
+  Szenariogrundriss: K-Frage mit 3 Aussagen
+    Angenommen eine K-Frage mit 1 Punkt und 3 Aussagen
+    Wenn der Kandidat <richtig> Aussagen richtig, <falsch> falsch und <offen> nicht zuordnet
+    Dann erhält er <Punkte> Punkte
+
+    Beispiele:
+      | richtig | falsch | offen | Punkte |
+      | 3       | 0      | 0     | 1      |
+      | 2       | 1      | 0     | 1/3    |
+      | 1       | 2      | 0     | 0      |
+      | 2       | 0      | 1     | 2/3    |
+
+  @UC-01 @BR-43 @BR-46
+  Szenariogrundriss: Bestehensgrenze 60 %
+    Angenommen eine Prüfung mit 50 erreichbaren Punkten
+    Wenn der Kandidat <erreicht> Punkte erreicht
+    Dann lautet das Ergebnis <Ergebnis>
+
+    Beispiele:
+      | erreicht | Ergebnis        |
+      | 30       | bestanden       |
+      | 89/3     | nicht bestanden |
+      | 50       | bestanden       |
+      | 0        | nicht bestanden |
+
+  @UC-01 @BR-40 @BR-41 @BR-42
+  Regel: Invariante – jede Frage bringt zwischen 0 und ihrer Punktzahl
+    Szenario: Zufällige Antworten bleiben im Wertebereich
+      Angenommen 1000 zufällig erzeugte Fragen aller drei Typen mit 1 oder 2 Punkten
+      Wenn für jede Frage eine zufällige Antwort bewertet wird
+      Dann liegt jedes Ergebnis zwischen 0 und der Punktzahl der Frage
+      Und jede vollständig korrekte Antwort erhält genau die Punktzahl der Frage
+
+  @UC-01 @BR-43
+  Regel: Invariante – das Ergebnis hängt nur vom Anteil ab
+    Szenario: Skalierte Punktzahlen ändern "bestanden" nicht
+      Angenommen eine bewertete Prüfung
+      Wenn alle Punktzahlen der Fragen verdoppelt werden
+      Dann bleibt der Prozentwert gleich
+      Und das Ergebnis "bestanden" oder "nicht bestanden" bleibt gleich
+----
+
+== UC-02 Problem zu einer Frage melden
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-02 Problem zu einer Frage melden
+
+  Grundlage:
+    Angenommen die Schwelle ist 3
+    Und Frage "AG-01" hat die aktuelle Version "v1" im Status "Released" mit 0 Meldungen
+    Und ein Kandidat hat eine Prüfung mit "AG-01" an Position 7
+
+  @UC-02 @BR-51 @BR-52 @BR-54 @BR-58
+  Szenario: MSS – Meldung zur Frage
+    Wenn der Kandidat zu Position 7 eine Meldung der Kategorie "unclear" mit Text "Option C und D meinen dasselbe" abgibt
+    Dann speichert das System die Meldung zu "AG-01" Version "v1"
+    Und die Antwort meldet "counted" = true
+    Und der Meldungszähler von "v1" ist 1
+
+  @UC-02 @BR-15
+  Szenario: MSS – Meldung zu einer Antwortoption zählt für die Frage
+    Wenn der Kandidat zu Position 7 und Option "C" eine Meldung der Kategorie "wrong" abgibt
+    Dann speichert das System die Meldung mit Option "C"
+    Und der Meldungszähler von "v1" ist 1
+
+  @UC-02 @BR-53 @BR-56
+  Szenario: Extension 2a – Kontaktdaten mit Einwilligung
+    Wenn der Kandidat eine Meldung mit Name "Erika Muster", Kontakt "erika@example.org" und Einwilligung abgibt
+    Dann speichert das System die Kontaktdaten
+    Und nur angemeldete AG-Mitglieder sehen sie
+
+  @UC-02 @BR-53
+  Szenario: Extension 2a – Kontaktdaten ohne Einwilligung
+    Wenn der Kandidat eine Meldung mit Name "Erika Muster" ohne Einwilligung abgibt
+    Dann antwortet das System mit Status 422 und Code "INVALID_REPORT"
+    Und das System hat nichts gespeichert
+
+  @UC-02 @BR-51
+  Szenario: Extension 3a – Kategorie fehlt
+    Wenn der Kandidat eine Meldung ohne Kategorie abgibt
+    Dann antwortet das System mit Status 422 und Code "INVALID_REPORT"
+    Und der Meldungszähler von "v1" ist 0
+
+  @UC-02 @BR-52
+  Szenario: Extension 3a – Text zu lang
+    Wenn der Kandidat eine Meldung mit 2001 Zeichen Text abgibt
+    Dann antwortet das System mit Status 422 und Code "INVALID_REPORT"
+
+  @UC-02 @BR-54
+  Szenario: Extension 5a – zweite Meldung aus derselben Prüfung
+    Angenommen der Kandidat hat zu Position 7 bereits eine Meldung abgegeben
+    Wenn er zu Position 7 und Option "D" eine weitere Meldung abgibt
+    Dann speichert das System die Meldung
+    Und die Antwort meldet "counted" = false
+    Und der Meldungszähler von "v1" ist 1
+
+  @UC-02 @BR-13 @BR-65
+  Szenario: Extension 5b – Schwelle erreicht
+    Angenommen "v1" hat 2 Meldungen aus zwei anderen Prüfungen
+    Wenn der Kandidat zu Position 7 eine Meldung abgibt
+    Dann ist der Status von "v1" "Draft"
+    Und das Protokoll enthält den Wechsel "Released" → "Draft" mit Auslöser "automatisch"
+    Und eine neue Prüfung enthält "AG-01" nicht
+
+  @UC-02 @BR-58
+  Szenario: Extension 5c – Meldung zu einer veralteten Version
+    Angenommen ein Import hat Version "v2" von "AG-01" angelegt
+    Und "v2" ist Released
+    Wenn der Kandidat zu Position 7 eine Meldung abgibt
+    Dann zählt die Meldung für "v1"
+    Und Meldungszähler und Status von "v2" bleiben unverändert
+
+  @UC-02 @BR-50
+  Szenario: Meldung nach der Abgabe
+    Angenommen der Kandidat hat die Prüfung abgegeben
+    Wenn er zu Position 7 eine Meldung abgibt
+    Dann nimmt das System die Meldung an
+
+  @UC-02 @BR-54
+  Regel: Invariante – der Meldungszähler einer Version ist höchstens die Zahl der Prüfungen mit Meldungen zu ihr
+    Szenario: Viele Meldungen aus wenigen Prüfungen
+      Angenommen 3 Prüfungen enthalten "AG-01" in Version "v1"
+      Und die Schwelle ist 100
+      Wenn aus jeder Prüfung 5 Meldungen zu "AG-01" eingehen
+      Dann ist der Meldungszähler von "v1" 3
+----
+
+== UC-03 Draft-Version prüfen und freigeben
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-03 Draft-Version prüfen und freigeben
+
+  @UC-03 @BR-12 @BR-63 @BR-65
+  Szenario: MSS – Draft-Version freigeben
+    Angenommen ein AG-Mitglied "alice" ist angemeldet
+    Und Frage "AG-02" hat die aktuelle Version "v1" im Status "Draft"
+    Wenn "alice" die Frage öffnet
+    Dann sieht sie den Inhalt in allen Sprachen mit Lösung und Erklärung
+    Wenn "alice" "v1" freigibt
+    Dann ist der Status von "v1" "Released"
+    Und das Protokoll enthält die Freigabe durch "alice"
+    Und "AG-02" kann in einer neuen Prüfung erscheinen
+
+  @UC-03 @BR-60 @BR-61
+  Szenario: Extension 1a – GitHub-Konto nicht im Admin-Team
+    Angenommen das GitHub-Konto "mallory" gehört nicht zum Admin-Team
+    Wenn "mallory" sich anmeldet
+    Dann antwortet das System mit Status 403 und Code "NOT_A_MEMBER"
+    Und es setzt kein Session-Cookie
+
+  @UC-03 @BR-11 @BR-20
+  Szenario: Extension 4a – nicht freigegebene Version bleibt außerhalb der Prüfung
+    Angenommen Frage "AG-03" hat die aktuelle Version im Status "Draft"
+    Wenn 100 Prüfungen gestartet werden
+    Dann enthält keine davon "AG-03"
+
+  @UC-03 @BR-12
+  Szenario: Extension 5a – inzwischen neuere Version
+    Angenommen "alice" hat "AG-02" Version "v1" geöffnet
+    Und ein Import hat danach Version "v2" angelegt
+    Wenn "alice" "v1" freigibt
+    Dann antwortet das System mit Status 409 und Code "NOT_CURRENT_VERSION"
+    Und der Status von "v1" und "v2" ist "Draft"
+
+  @UC-03 @BR-09 @BR-12
+  Szenario: Extension 5a – Frage aus dem Repo entfernt
+    Angenommen Frage "AG-04" ist als entfernt markiert und ihre aktuelle Version ist "Draft"
+    Wenn "alice" diese Version freigibt
+    Dann antwortet das System mit Status 409 und Code "QUESTION_REMOVED"
+
+  @UC-03 @BR-12
+  Szenario: Extension 5b – bereits freigegeben
+    Angenommen "bob" hat "AG-02" Version "v1" gerade freigegeben
+    Wenn "alice" "v1" freigibt
+    Dann antwortet das System mit Status 409 und Code "ALREADY_RELEASED"
+    Und das Protokoll enthält nur die Freigabe durch "bob"
+
+  @UC-03 @BR-64
+  Szenario: Admin-Session läuft nach 8 Stunden ab
+    Angenommen "alice" hat sich vor 8 Stunden und 1 Minute angemeldet
+    Wenn sie die Fragenliste abruft
+    Dann antwortet das System mit Status 401 und Code "NOT_AUTHENTICATED"
+
+  @UC-03 @BR-60
+  Szenario: Admin-API ohne Anmeldung
+    Wenn ein Aufruf ohne Session-Cookie die Fragenliste abruft
+    Dann antwortet das System mit Status 401 und Code "NOT_AUTHENTICATED"
+----
+
+== UC-04 Gemeldete Frage auswerten
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-04 Gemeldete Frage auswerten
+
+  Grundlage:
+    Angenommen ein AG-Mitglied "alice" ist angemeldet
+
+  @UC-04 @BR-07 @BR-62 @BR-63
+  Szenario: MSS – Frage mit Historie lesen
+    Angenommen "AG-05" hat Version "v1" mit 4 Meldungen und 12 Abschlüssen und Version "v2" mit 0 Meldungen
+    Wenn "alice" die Fragenliste nach Meldungen sortiert abruft
+    Dann steht jede Frage mit Meldungen zur aktuellen Version vor jeder Frage ohne
+    Wenn "alice" "AG-05" öffnet
+    Dann sieht sie "v2" und "v1" mit Inhalt, Status, Zählern und allen Meldungen, neueste Version zuerst
+
+  @UC-04 @BR-57
+  Szenario: Extension 3a – Kontaktdaten mit neuer Version gelöscht
+    Angenommen eine Meldung zu "AG-05" Version "v1" enthielt Kontaktdaten
+    Und ein Import hat danach Version "v2" angelegt
+    Wenn "alice" "AG-05" öffnet
+    Dann zeigt das System die Meldung ohne Kontaktdaten mit dem Vermerk "Kontaktdaten gelöscht"
+
+  @UC-04 @BR-06
+  Szenario: Extension 5a – gemergte Überarbeitung wird neue Draft-Version
+    Angenommen "AG-05" Version "v1" ist "Draft" mit 3 Meldungen
+    Und die AG hat eine Änderung an "AG-05" in den Branch "main" gemergt
+    Wenn der nächste Import läuft
+    Dann hat "AG-05" eine neue aktuelle Version im Status "Draft" mit 0 Meldungen und 0 Abschlüssen
+    Und "v1" ist mit 3 Meldungen weiterhin einsehbar
+
+  @UC-04 @BR-56
+  Szenario: Kontaktdaten erscheinen nie in der öffentlichen API
+    Angenommen eine Meldung zu "AG-05" enthält Kontaktdaten
+    Wenn ein Kandidat die zugehörige Prüfung fortsetzt oder ihr Ergebnis abruft
+    Dann enthält keine Antwort die Kontaktdaten
+----
+
+== UC-05 Schwelle einstellen
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-05 Schwelle einstellen
+
+  Grundlage:
+    Angenommen ein AG-Mitglied "alice" ist angemeldet
+    Und die Schwelle ist 3
+
+  @UC-05 @BR-14 @BR-16 @BR-65
+  Szenario: MSS – Schwelle senken setzt betroffene Fragen auf Draft
+    Angenommen "AG-07" ist Released mit 2 Meldungen und "AG-08" ist Released mit 1 Meldung
+    Wenn "alice" die Schwelle auf 2 setzt
+    Dann ist die Schwelle 2
+    Und "AG-07" ist "Draft", "AG-08" bleibt "Released"
+    Und die Antwort nennt "AG-07" als zurückgesetzt
+    Und das Protokoll enthält die Änderung der Schwelle durch "alice" und den Wechsel von "AG-07"
+
+  @UC-05 @BR-14
+  Szenariogrundriss: Extension 2a – ungültiger Wert
+    Wenn "alice" die Schwelle auf <Wert> setzt
+    Dann antwortet das System mit Status 422 und Code "INVALID_THRESHOLD"
+    Und die Schwelle bleibt 3
+
+    Beispiele:
+      | Wert |
+      | 0    |
+      | -1   |
+      | 2.5  |
+      | "x"  |
+
+  @UC-05 @BR-16
+  Szenario: Extension 4a – keine Version erreicht die neue Schwelle
+    Angenommen keine Released-Version hat mehr als 1 Meldung
+    Wenn "alice" die Schwelle auf 5 setzt
+    Dann ändert sich kein Status
+
+  @BR-14
+  Szenario: Startwert der Schwelle
+    Angenommen das System wurde neu installiert
+    Wenn ein AG-Mitglied die Einstellungen abruft
+    Dann ist die Schwelle 3
+----
+
+== UC-06 Fragenbestand aktualisieren
+
+[source,gherkin]
+----
+# language: de
+Funktionalität: UC-06 Fragenbestand aktualisieren
+
+  Grundlage:
+    Angenommen ein AG-Mitglied "alice" ist angemeldet
+
+  @UC-06 @BR-01 @BR-08
+  Szenario: MSS – Erstimport
+    Angenommen der Branch "main" enthält 38 gültige Dateien unter "mock/questions/" und 45 unter "pool/active-group/"
+    Und der Ordner "pool/" enthält zusätzlich Dateien mit den Endungen ".md", ".docx" und ".pptx"
+    Wenn "alice" den Import startet
+    Dann enthält der Fragenbestand 83 Fragen
+    Und die 38 Mock-Fragen sind "Released", die 45 Poolfragen sind "Draft"
+    Und Dateien ohne Endung ".xml" sind nicht als Fehler gemeldet
+
+  @UC-06 @BR-05
+  Szenario: Reine Formatänderung erzeugt keine neue Version
+    Angenommen "AG-01" ist importiert
+    Und eine Änderung fügt in "AG-01" nur Zeilenumbrüche, Einrückung, einen Kommentar und einen "history"-Eintrag hinzu
+    Wenn der Import läuft
+    Dann hat "AG-01" weiterhin dieselbe aktuelle Version
+
+  @UC-06 @BR-03 @BR-06 @BR-08
+  Szenario: Überarbeitete Mock-Frage beginnt als Draft
+    Angenommen die Mock-Frage "Q-17-13-03" ist "Released"
+    Und ihr Fragetext wurde im Repo geändert
+    Wenn der Import läuft
+    Dann hat "Q-17-13-03" eine neue aktuelle Version im Status "Draft"
+    Und die frühere Version gehört weiterhin zur Frage "Q-17-13-03"
+
+  @UC-06 @BR-10
+  Szenario: Extension 1a – Import läuft bereits
+    Angenommen ein Import läuft
+    Wenn "alice" den Import startet
+    Dann antwortet das System mit Status 409 und Code "IMPORT_RUNNING"
+
+  @UC-06
+  Szenario: Extension 2a – GitHub nicht erreichbar
+    Angenommen GitHub ist nicht erreichbar
+    Wenn der Import läuft
+    Dann endet der Lauf mit "failed"
+    Und Fragen, Versionen und Status sind unverändert
+
+  @UC-06 @BR-02
+  Szenario: Extension 3a – ungültige Datei
+    Angenommen "pool/x/broken.xml" verletzt "exam.rng"
+    Wenn der Import läuft
+    Dann endet der Lauf mit "succeeded"
+    Und die Admin-Ansicht zeigt "pool/x/broken.xml" mit dem Code "SCHEMA_INVALID"
+    Und alle gültigen Dateien sind importiert
+
+  @UC-06 @BR-04
+  Szenario: Extension 3b – doppelte id
+    Angenommen "pool/a/q1.xml" und "pool/b/q2.xml" tragen beide die id "DUP-1"
+    Wenn der Import läuft
+    Dann enthält der Fragenbestand keine Frage "DUP-1"
+    Und die Admin-Ansicht zeigt beide Pfade mit dem Code "DUPLICATE_QUESTION_ID"
+
+  @UC-06 @BR-09
+  Szenario: Extension 5a – Frage aus dem Repo entfernt
+    Angenommen "AG-09" ist importiert und hat 2 Meldungen
+    Und die Datei von "AG-09" wurde aus "main" gelöscht
+    Wenn der Import läuft
+    Dann ist "AG-09" als entfernt markiert
+    Und ihre Versionen und Meldungen sind weiterhin einsehbar
+    Und keine neue Prüfung enthält "AG-09"
+
+  @UC-06 @BR-10
+  Szenario: Täglicher Import
+    Angenommen der letzte Import liegt 24 Stunden zurück
+    Wenn der tägliche Zeitplan auslöst
+    Dann startet ein Import mit Auslöser "schedule"
+----

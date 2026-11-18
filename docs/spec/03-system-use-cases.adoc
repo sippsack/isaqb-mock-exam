@@ -1,0 +1,420 @@
+= Jede technische Schnittstelle hat einen System Use Case
+
+Das System hat vier Arten von Schnittstellen: das XML-Format der Fragen, den Import-Job, die öffentliche HTTP-API für Kandidaten und die Admin-API mit GitHub-Login.
+Die HTTP-APIs sprechen JSON über HTTPS.
+Die Spec legt Pfade, Felder und Statuscodes fest, aber keine Technologie.
+
+== Fehler folgen einem einheitlichen Format
+
+Jede Fehlerantwort der HTTP-APIs ist ein Problem-Details-Objekt nach RFC 9457 mit dem Content-Type `application/problem+json`.
+Das Feld `code` ist maschinenlesbar und in dieser Spec festgelegt.
+
+[source,json]
+----
+{
+  "type": "about:blank",
+  "title": "Exam has unanswered questions",
+  "status": 422,
+  "code": "UNANSWERED_QUESTIONS",
+  "detail": "Positions 3, 17 are unanswered.",
+  "positions": [3, 17]
+}
+----
+
+Allgemeine Fehler gelten für alle Endpunkte:
+
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedeutung
+
+|400 |`MALFORMED_REQUEST` |Body ist kein gültiges JSON oder hat den falschen Content-Type.
+|404 |`NOT_FOUND` |Ressource unbekannt.
+|429 |`RATE_LIMITED` |Zu viele Anfragen; Header `Retry-After` nennt die Wartezeit.
+|500 |`INTERNAL_ERROR` |Unerwarteter Fehler; die Antwort enthält keine internen Details.
+|===
+
+[[suc-xml]]
+== SUC-01 Fragedatei im XML-Format einlesen
+
+[horizontal]
+Schnittstelle:: Datei `*.xml` im Repo `isaqb-org/foundation-exam-questions`, Branch `main`
+Quelle des Formats:: `exam.rng`, Namespace `https://www.isaqb.org/ns/exam/foundation/v1`
+Regeln:: BR-01 bis BR-05, BR-08
+
+Eingabe und Validierung::
+* Wurzelelement ist `pickQuestion` oder `categoryQuestion`.
+* Die Datei validiert gegen `exam.rng`; sonst gilt BR-02.
+* Pflichtattribute: `id` (Text), `points` (positive ganze Zahl).
+* `stem`, jede `option`, jede `category` und jedes `statement` enthalten mindestens ein `text`-Element mit `xml:lang`.
+* Die App wertet nur `de` und `en` aus (BR-21); weitere Sprachen bleiben gespeichert.
+* Zusätzlich zum Schema prüft das System: Eine `pickQuestion` hat mindestens eine Option mit `correct="correct"`; jedes `correctCategory` einer Aussage verweist auf ein vorhandenes `label`; die `identifier` innerhalb einer Frage sind eindeutig.
+
+Verarbeitung::
+. Das System liest die Datei als UTF-8.
+. Es validiert gegen das Schema und die Zusatzprüfungen.
+. Es bildet den normalisierten Inhalt: Kommentare und `history` entfernt, Leerraum in Textknoten auf ein Leerzeichen reduziert und an den Rändern gekürzt, Attribute alphabetisch sortiert (BR-05).
+. Es berechnet SHA-256 über den normalisierten Inhalt.
+. Es leitet ab, in welchen Sprachen die Frage vollständig vorliegt: Eine Sprache gilt, wenn jedes Textelement der Frage einen Text in dieser Sprache hat, ohne `outdated`.
+
+Ausgabe:: Ein Frage-Datensatz mit `id`, Pfad, Typ, `points`, Lernziel-Referenzen, Texten je Sprache, Lösung, Erklärung, Hash und Sprachliste.
+
+Fehler::
+[cols="2,4"]
+|===
+|Fehler |Reaktion
+
+|`XML_NOT_WELL_FORMED` |Datei überspringen, Fehler mit Zeile melden (BR-02).
+|`SCHEMA_INVALID` |Datei überspringen, erste Schemaverletzung melden (BR-02).
+|`NO_CORRECT_OPTION` |Datei überspringen, melden.
+|`UNKNOWN_CATEGORY` |Datei überspringen, Aussage und Label melden.
+|`DUPLICATE_IDENTIFIER` |Datei überspringen, doppelten `identifier` melden.
+|`DUPLICATE_QUESTION_ID` |Beide Dateien überspringen, beide Pfade melden (BR-04).
+|===
+
+[[suc-import]]
+== SUC-02 Import-Job ausführen
+
+[horizontal]
+Schnittstelle:: Zeitgesteuertes Ereignis (täglich) und Auslöser aus <<suc-admin-import>>
+Regeln:: BR-01, BR-02, BR-04 bis BR-10, BR-57
+
+Eingabe und Validierung::
+* Auslöser `schedule` oder `manual` mit GitHub-Login des AG-Mitglieds.
+* Läuft bereits ein Import, startet kein zweiter (Status `ALREADY_RUNNING`).
+
+Verarbeitung::
+. Das System ermittelt den Commit-SHA des Branches `main` und liest an diesem Commit alle XML-Dateien aus `mock/questions/` und `pool/**/` (BR-01).
+. Es verarbeitet jede Datei nach <<suc-xml>>.
+. Für jede gültige Frage:
+.. unbekannte `id`: Frage und erste Version anlegen, Status nach BR-08;
+.. bekannte `id`, gleicher Hash: nichts ändern; eine früher entfernte Frage gilt wieder als vorhanden;
+.. bekannte `id`, anderer Hash: neue Version Draft, Zähler 0 (BR-06), Kontaktdaten früherer Meldungen löschen (BR-57).
+. Jede bekannte Frage, die nicht mehr im Repo liegt, wird als entfernt markiert (BR-09).
+. Alle Änderungen eines Imports werden gemeinsam übernommen oder gar nicht.
+. Statusänderungen werden protokolliert (BR-65).
+
+Ausgabe:: Ein Import-Lauf mit Commit-SHA, Start, Ende, Ergebnis (`succeeded`, `failed`) und Zählern für neue Fragen, neue Versionen, entfernte Fragen und Dateifehler samt Liste der Fehler.
+
+Fehler::
+[cols="2,4"]
+|===
+|Fehler |Reaktion
+
+|GitHub nicht erreichbar oder Rate-Limit |Lauf `failed`, nichts ändern; der nächste geplante Lauf versucht es erneut.
+|Zeitlimit überschritten |Lauf `failed`, nichts ändern.
+|Ungültige Dateien |Lauf `succeeded` mit Dateifehlern; gültige Dateien sind importiert.
+|===
+
+[[suc-start]]
+== SUC-03 `POST /api/exams` – Prüfung starten
+
+[horizontal]
+Aufrufer:: Frontend, ohne Anmeldung (BR-24)
+Regeln:: BR-20 bis BR-22, BR-25, BR-27
+
+Eingabe und Validierung::
+[source,json]
+----
+{ "language": "de" }
+----
+* `language` ist Pflicht und einer der Werte `de`, `en` (BR-21).
+
+Verarbeitung::
+. Das System ermittelt die ziehbaren Fragen nach BR-20 und zieht min(40, n) davon zufällig.
+. Es mischt die Reihenfolge der Fragen; die Reihenfolge der Optionen bleibt wie im XML.
+. Es legt eine Prüfung mit zufälliger Session-ID an (BR-25) und hält die gezogenen Versionen fest (BR-22).
+
+Ausgabe:: `201 Created`, Header `Location: /api/exams/{sessionId}`, Body `ExamDto` (siehe <<contracts>>) ohne Lösungen (BR-27).
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|422 |`INVALID_LANGUAGE` |`language` fehlt oder ist kein erlaubter Wert.
+|503 |`NO_QUESTIONS_AVAILABLE` |n = 0.
+|===
+
+[[suc-get]]
+== SUC-04 `GET /api/exams/{sessionId}` – Prüfung fortsetzen
+
+[horizontal]
+Aufrufer:: Frontend, ohne Anmeldung
+Regeln:: BR-25 bis BR-27, BR-31
+
+Eingabe und Validierung:: `sessionId` im Pfad, Format nach <<validation>>.
+
+Verarbeitung:: Das System lädt die Prüfung mit allen festgehaltenen Versionen und gespeicherten Antworten.
+
+Ausgabe:: `200 OK`, Body `ExamDto` mit `answers`. Ist die Prüfung abgegeben, enthält der Body zusätzlich `result` (`ResultDto`).
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|404 |`EXAM_NOT_FOUND` |Session-ID unbekannt, ungültig formatiert oder Prüfung gelöscht (BR-31).
+|===
+
+[[suc-answer]]
+== SUC-05 `PUT /api/exams/{sessionId}/answers/{position}` – Antwort speichern
+
+[horizontal]
+Aufrufer:: Frontend, ohne Anmeldung
+Regeln:: BR-26, BR-30
+
+Eingabe und Validierung::
+Für eine Auswahlfrage:
+[source,json]
+----
+{ "selected": ["B", "D"] }
+----
+Für eine Zuordnungsfrage:
+[source,json]
+----
+{ "assignments": { "A": "a", "B": "a", "C": "b" } }
+----
+* `position` ist eine Position der Prüfung (1 bis Anzahl der Fragen).
+* `selected` enthält nur `identifier` von Optionen dieser Version, jeden höchstens einmal; eine leere Liste löscht die Antwort.
+* `assignments` bildet `identifier` von Aussagen auf `label` von Kategorien dieser Version ab; fehlende Aussagen gelten als offen gelassen.
+
+Verarbeitung:: Das System ersetzt die gespeicherte Antwort dieser Position vollständig und setzt den Zeitpunkt der letzten Änderung (BR-31).
+
+Ausgabe:: `204 No Content`.
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|404 |`EXAM_NOT_FOUND` |Prüfung unbekannt.
+|404 |`POSITION_NOT_FOUND` |Position außerhalb der Prüfung.
+|409 |`EXAM_SUBMITTED` |Prüfung ist bereits abgegeben (BR-30).
+|422 |`INVALID_ANSWER` |Unbekannter `identifier` oder `label`, Duplikat, falscher Antworttyp für die Frage.
+|===
+
+[[suc-submit]]
+== SUC-06 `POST /api/exams/{sessionId}/submission` – Prüfung abgeben
+
+[horizontal]
+Aufrufer:: Frontend, ohne Anmeldung
+Regeln:: BR-28 bis BR-30, BR-40 bis BR-45
+
+Eingabe und Validierung:: Kein Body. Alle Fragen müssen nach BR-29 beantwortet sein.
+
+Verarbeitung::
+. Ist die Prüfung bereits abgegeben, liefert das System das gespeicherte Ergebnis (BR-30).
+. Sonst bewertet es jede Frage nach BR-40 bis BR-42 und die Prüfung nach BR-43.
+. Es speichert Ergebnis und Abgabezeitpunkt und macht die Antworten unveränderlich (BR-30).
+. Es erhöht den Abschlusszähler jeder festgehaltenen Version um 1 (BR-45).
+. Schritte 2 bis 4 geschehen gemeinsam oder gar nicht.
+
+Ausgabe:: `200 OK`, Body `ResultDto` mit Lösungen und Erklärungen (BR-44).
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|404 |`EXAM_NOT_FOUND` |Prüfung unbekannt.
+|422 |`UNANSWERED_QUESTIONS` |Mindestens eine Frage unbeantwortet; `positions` listet sie (BR-28).
+|===
+
+[[suc-report]]
+== SUC-07 `POST /api/exams/{sessionId}/reports` – Problem melden
+
+[horizontal]
+Aufrufer:: Frontend, ohne Anmeldung
+Regeln:: BR-13, BR-15, BR-50 bis BR-54, BR-58, BR-65
+
+Eingabe und Validierung::
+[source,json]
+----
+{
+  "position": 7,
+  "optionIdentifier": "C",
+  "category": "unclear",
+  "text": "Option C und D meinen dasselbe.",
+  "contact": { "name": "Erika Muster", "contact": "erika@example.org", "consent": true }
+}
+----
+* `position` ist Pflicht und eine Position der Prüfung.
+* `optionIdentifier` ist optional und verweist auf eine Option oder Aussage der festgehaltenen Version.
+* `category` ist Pflicht (BR-51).
+* `text` ist optional, höchstens 2000 Zeichen (BR-52).
+* `contact` ist optional; wenn vorhanden, muss `consent` `true` sein und mindestens `name` oder `contact` gefüllt sein (BR-53).
+
+Verarbeitung::
+. Das System speichert die Meldung zur festgehaltenen Version der Position (BR-58).
+. Hat diese Prüfung zu dieser Frage noch keine angerechnete Meldung, erhöht es den Meldungszähler der Version um 1 (BR-54, BR-15).
+. Ist die Version die aktuelle Version, Released, und erreicht der Zähler die Schwelle, setzt es sie auf Draft und protokolliert den Wechsel (BR-13, BR-65).
+. Schritte 1 bis 3 geschehen gemeinsam oder gar nicht.
+
+Ausgabe:: `201 Created`, Body:
+[source,json]
+----
+{ "reportId": "rep_01J…", "counted": true }
+----
+`counted` sagt, ob die Meldung auf den Zähler angerechnet wurde. Der Body verrät weder Zählerstand noch Statuswechsel.
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|404 |`EXAM_NOT_FOUND` |Prüfung unbekannt.
+|404 |`POSITION_NOT_FOUND` |Position außerhalb der Prüfung.
+|422 |`INVALID_REPORT` |Kategorie fehlt oder unbekannt, Text zu lang, unbekannte Option, Kontaktdaten ohne Einwilligung oder zu lang; `errors` nennt die Felder.
+|===
+
+[[suc-auth]]
+== SUC-08 `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` – AG-Mitglied anmelden
+
+[horizontal]
+Aufrufer:: Browser des AG-Mitglieds
+Regeln:: BR-60, BR-61, BR-64
+
+Eingabe und Validierung::
+* `/auth/login`: keine Eingabe.
+* `/auth/callback`: Query-Parameter `code` und `state` von GitHub; `state` muss zum Wert passen, den `/auth/login` gesetzt hat.
+
+Verarbeitung::
+. `/auth/login` erzeugt einen zufälligen `state`, speichert ihn in einem kurzlebigen Cookie und leitet zu GitHub weiter.
+. `/auth/callback` tauscht `code` gegen ein Token, liest den GitHub-Login und prüft die Mitgliedschaft im konfigurierten Team (BR-60).
+. Bei Mitgliedschaft setzt das System ein Session-Cookie (`HttpOnly`, `Secure`, `SameSite=Lax`) mit einer Gültigkeit von 8 Stunden (BR-64) und leitet zur Admin-Ansicht weiter.
+. `/auth/logout` macht die Session ungültig und löscht das Cookie.
+
+Ausgabe::
+* `/auth/login`: `302 Found` zu GitHub.
+* `/auth/callback`: `302 Found` zur Admin-Ansicht.
+* `/auth/logout`: `204 No Content`.
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|400 |`INVALID_OAUTH_STATE` |`state` fehlt oder passt nicht.
+|403 |`NOT_A_MEMBER` |GitHub-Konto gehört nicht zum Team (BR-61).
+|502 |`GITHUB_UNAVAILABLE` |GitHub antwortet nicht oder mit einem Fehler.
+|===
+
+== Admin-API verlangt eine gültige Admin-Session
+
+Alle folgenden Endpunkte verlangen ein gültiges Session-Cookie aus <<suc-auth>>.
+Fehlt es oder ist es abgelaufen, antwortet das System mit `401 Unauthorized`, `code` `NOT_AUTHENTICATED` (BR-64).
+Ändernde Endpunkte (`POST`, `PUT`) verlangen zusätzlich den Header `X-Requested-With: mock-exam` als Schutz gegen Cross-Site Request Forgery; fehlt er, antwortet das System mit `403`, `code` `CSRF_CHECK_FAILED`.
+
+[[suc-admin-list]]
+=== SUC-09 `GET /api/admin/questions` – Fragen auflisten
+
+[horizontal]
+Regeln:: BR-62
+
+Eingabe und Validierung:: Optionale Query-Parameter `status` (`Draft`, `Released`), `removed` (`true`, `false`), `sort` (`reports`, `completions`, `id`; Standard `reports`).
+
+Verarbeitung:: Das System liest alle Fragen mit ihrer aktuellen Version und filtert und sortiert sie.
+
+Ausgabe:: `200 OK`, Body:
+[source,json]
+----
+{
+  "questions": [ {
+    "questionId": "AG-01",
+    "sourcePath": "pool/active-group/active-group-01.xml",
+    "removed": false,
+    "currentVersion": { "versionId": "ver_…", "hash": "9f2c…", "status": "Draft",
+                        "completions": 0, "reports": 0, "languages": ["de", "en"] }
+  } ],
+  "lastImport": { "importRunId": "imp_…", "commitSha": "…", "result": "succeeded",
+                  "finishedAt": "2026-11-18T03:00:12Z", "fileErrors": [] }
+}
+----
+
+Fehler:: `422` `INVALID_QUERY` bei unbekanntem Filter- oder Sortierwert.
+
+[[suc-admin-detail]]
+=== SUC-10 `GET /api/admin/questions/{questionId}` – Frage mit Historie lesen
+
+[horizontal]
+Regeln:: BR-07, BR-56, BR-57, BR-63, BR-65
+
+Eingabe und Validierung:: `questionId` im Pfad.
+
+Verarbeitung:: Das System lädt alle Versionen der Frage, neueste zuerst, mit Inhalt, Lösung, Status, Zählern, Meldungen und Protokolleinträgen.
+
+Ausgabe:: `200 OK`, Body `AdminQuestionDto` (siehe <<contracts>>); Kontaktdaten erscheinen nur hier (BR-56) und fehlen, wenn sie nach BR-57 gelöscht sind (`contactDeleted: true`).
+
+Fehler:: `404` `QUESTION_NOT_FOUND`.
+
+[[suc-admin-release]]
+=== SUC-11 `POST /api/admin/questions/{questionId}/versions/{versionId}/release` – Version freigeben
+
+[horizontal]
+Regeln:: BR-09, BR-12, BR-65
+
+Eingabe und Validierung:: `questionId` und `versionId` im Pfad, kein Body.
+
+Verarbeitung::
+. Das System prüft, dass die Version die aktuelle Version ist, Status Draft hat und die Frage nicht entfernt ist.
+. Es setzt den Status auf Released und protokolliert die Freigabe mit dem GitHub-Login (BR-12, BR-65).
+
+Ausgabe:: `200 OK`, Body: die aktualisierte Version.
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|404 |`QUESTION_NOT_FOUND` |Frage oder Version unbekannt.
+|409 |`NOT_CURRENT_VERSION` |Eine neuere Version existiert.
+|409 |`ALREADY_RELEASED` |Version ist bereits Released.
+|409 |`QUESTION_REMOVED` |Frage ist als entfernt markiert (BR-09).
+|===
+
+[[suc-admin-settings]]
+=== SUC-12 `GET /api/admin/settings`, `PUT /api/admin/settings` – Schwelle lesen und ändern
+
+[horizontal]
+Regeln:: BR-14, BR-16, BR-65
+
+Eingabe und Validierung::
+[source,json]
+----
+{ "reportThreshold": 3 }
+----
+* `reportThreshold` ist eine ganze Zahl von 1 bis 1000.
+
+Verarbeitung::
+. `PUT` speichert den Wert und protokolliert die Änderung (BR-14, BR-65).
+. Es setzt jede aktuelle Released-Version mit Meldungszähler ≥ neuer Schwelle auf Draft und protokolliert jeden Wechsel (BR-16).
+. Beide Schritte geschehen gemeinsam oder gar nicht.
+
+Ausgabe::
+* `GET`: `200 OK`, Body wie oben.
+* `PUT`: `200 OK`, Body `{ "reportThreshold": 2, "demotedQuestionIds": ["AG-07"] }`.
+
+Fehler:: `422` `INVALID_THRESHOLD`.
+
+[[suc-admin-import]]
+=== SUC-13 `POST /api/admin/imports`, `GET /api/admin/imports/latest` – Import auslösen und verfolgen
+
+[horizontal]
+Regeln:: BR-10
+
+Eingabe und Validierung:: Kein Body.
+
+Verarbeitung:: `POST` startet <<suc-import>> mit Auslöser `manual` und dem GitHub-Login; `GET` liest den letzten Import-Lauf.
+
+Ausgabe::
+* `POST`: `202 Accepted`, Header `Location: /api/admin/imports/latest`, Body `{ "importRunId": "imp_…" }`.
+* `GET`: `200 OK`, Body: Import-Lauf wie in <<suc-admin-list>> unter `lastImport`, zusätzlich mit `status` (`running`, `succeeded`, `failed`).
+
+Fehler::
+[cols="1,2,4"]
+|===
+|Status |`code` |Bedingung
+
+|409 |`IMPORT_RUNNING` |Ein Import läuft bereits.
+|404 |`NO_IMPORT_YET` |`GET` vor dem ersten Import.
+|===
