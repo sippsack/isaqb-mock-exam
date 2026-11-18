@@ -1,0 +1,274 @@
+= PRD: iSAQB Foundation Mock-Exam mit Community-Feedback
+:toc: left
+:toclevels: 2
+:sectnums:
+:revdate: 2026-11-18
+:status: Entwurf zur Review durch die AG Foundation
+
+[abstract]
+Die AG Foundation des iSAQB baut einen öffentlichen Pool von Prüfungsfragen auf, dessen Qualität stark schwankt.
+Diese App lässt Kandidaten eine realistische Probeprüfung mit 40 Fragen ablegen und sammelt dabei ihr Feedback zu jeder Frage.
+Fragen mit zu vielen Problemmeldungen fallen automatisch aus der Prüfung, bis die AG sie überarbeitet hat.
+
+Quellen: „Runde N“ verweist auf die Discovery-Runden mit dem Product Owner vom 2026-11-18 (Claude-Code-Session, siehe Pull Request).
+Repo-Verweise beziehen sich auf `isaqb-org/foundation-exam-questions`, Stand 2026-10-02.
+
+== Der neue Fragenpool braucht ein Qualitätssignal, das die AG nicht selbst erzeugen kann
+
+Die AG Foundation pflegt die echten Prüfungsfragen in einem privaten Repo.
+Um mehr gute Fragen zu gewinnen, sammelt sie Fragen von Trainern in einem öffentlichen Pool und will die besten später in die echte Prüfung übernehmen (Runde 3, 5).
+Die Qualität dieser Poolfragen schwankt stark (Runde 6).
+Fünf bis zehn AG-Mitglieder können nicht jede Frage gründlich gegenlesen (Runde 13).
+Kandidaten beantworten solche Fragen ohnehin beim Lernen, und ihr Urteil geht heute verloren.
+
+Die beiden bestehenden Community-Apps simulieren die Prüfung bereits, sammeln aber kein strukturiertes Feedback für die AG und lesen nur die 38 Mock-Fragen (Runde 1; `enyineer/isaqb-exam`, `worker/src/questions.ts:15`).
+
+== Die App verfolgt drei Ziele
+
+[cols="1,4,3"]
+|===
+|ID |Ziel |Quelle
+
+|G1
+|Jede Poolfrage erhält ein belastbares Qualitätssignal aus der Community, damit die AG gezielt die schwachen Fragen überarbeitet.
+|Runde 1, 6
+
+|G2
+|Kandidaten üben unter echten Prüfungsbedingungen: 40 Fragen, offizielle Punktvergabe, Ergebnis erst nach der letzten Antwort.
+|Runde 8, 12
+
+|G3
+|Der Betrieb kostet in der ersten Stufe nichts und braucht kaum Pflege; ein späterer Umzug in die Docker-Infrastruktur des iSAQB bleibt möglich.
+|Runde 11
+|===
+
+== Zwei Personas nutzen die App direkt, eine liefert zu
+
+=== P1 Kandidat: bereitet sich auf die Zertifizierung vor
+
+Kandidaten besuchen eine Foundation-Schulung oder lernen allein und wollen die echte Prüfung bestehen (Runde 6).
+Sie wollen wissen, ob sie bestanden hätten, und keine Konten anlegen (Runde 9, 12).
+Feedback geben sie freiwillig, wenn eine Frage sie stört; die App bittet nach der Prüfung darum (Runde 8).
+Wer möchte, hinterlässt Name und Kontaktdaten für Rückfragen (Runde 7).
+
+=== P2 AG-Mitglied: verantwortet Qualität und Freigabe
+
+Fünf bis zehn Mitglieder der AG Foundation lesen das Feedback, überarbeiten die Fragen per Pull Request im öffentlichen Repo und geben sie in der App frei (Runde 4, 8, 13).
+Sie melden sich an, vorzugsweise mit ihrem GitHub-Konto (Runde 13).
+
+=== P3 Trainer: liefert Fragen, nutzt die App nicht direkt
+
+Trainer stellen Fragen als XML, Markdown oder Word bereit (`pool/active-group`, `pool/lorz-it`, `pool/Albion`).
+Eine Vorverarbeitung außerhalb der App wandelt sie in XML nach `exam.rng` um (Runde 9).
+
+== Drei Kennzahlen zeigen nach sechs Monaten, ob sich die App lohnt
+
+[cols="1,5,2"]
+|===
+|ID |Erfolgskriterium |Quelle
+
+|SC1
+|Mindestens 100 abgeschlossene Prüfungsdurchläufe in den ersten sechs Monaten nach Go-live.
+|Runde 11
+
+|SC2
+|Jede freigegebene Frage wurde in mindestens 10 abgeschlossenen Prüfungen beantwortet.
+Eine Frage zählt nur, wenn die Prüfung vollständig beantwortet und abgegeben wurde.
+|Runde 6, 11
+
+|SC3
+|Jede Frage, die die Schwelle für Problemmeldungen überschritten hat, liegt als überarbeitete Version wieder vor.
+Eine Frage, die SC2 erfüllt und unter der Schwelle bleibt, gilt als gut.
+|Runde 6
+|===
+
+Rechnerisch passen SC1 und SC2 zusammen: 100 Prüfungen mit je 40 Fragen ergeben 4.000 Antworten, auf 138 Fragen verteilt also rund 29 pro Frage.
+
+== Die Impact Map verbindet jede Lieferung mit einem Ziel
+
+[plantuml, impact-map, svg]
+----
+@startmindmap
+* G1 Qualitätssignal\nfür jede Poolfrage
+** P1 Kandidat
+*** meldet Probleme zu Frage\noder Antwortoption
+**** Problem melden (pro Frage/Option)
+**** Feedback-Hinweis nach der Prüfung
+*** legt Prüfungen ab\n(erzeugt Bearbeitungen)
+**** Prüfung mit 40 Fragen
+**** Ergebnis mit „bestanden“
+**** Fortsetzen per Link
+** P2 AG-Mitglied
+*** sieht schwache Fragen sofort
+**** Feedback-Übersicht pro Frage
+**** automatischer Rückfall auf Draft
+*** gibt geprüfte Fragen frei
+**** Freigabe per Klick
+**** Versionshistorie mit Zählerständen
+** P3 Trainer
+*** liefert Fragen als XML
+**** Import aus dem öffentlichen Repo
+@endmindmap
+----
+
+== Die User Story Map schneidet eine kleine erste Stufe heraus
+
+Die oberste Zeile folgt dem Weg einer Frage vom Repo bis zur Überarbeitung.
+Die Zeile „Walking Skeleton“ verdrahtet alle Schichten; „Stufe 1“ ist das erste Release; „Später“ ist bewusst verschoben (Runde 14).
+
+[cols="h,1,1,1,1,1"]
+|===
+| |Fragen importieren |Prüfung ablegen |Ergebnis sehen |Feedback geben |Fragen verwalten
+
+|Walking Skeleton
+|Mock-Fragen aus `mock/questions` laden
+|eine Frage anzeigen und beantworten
+|Punktzahl einer Frage
+|eine Problemmeldung speichern
+|–
+
+|Stufe 1
+|zusätzlich `pool/**` laden; Version per Inhalts-Hash; ungültiges XML melden
+|bis zu 40 zufällige freigegebene Fragen; Session auf dem Server; Fortsetzen per Link
+|offizielle Punktvergabe; Gesamtpunktzahl; bestanden ab 60 %
+|Meldung pro Frage oder Option mit Kategorie und Freitext; optionale Kontaktdaten; Hinweis nach der Prüfung
+|GitHub-Login für AG; Freigabe; automatischer Rückfall ab Schwelle; Schwelle einstellen; Historie pro Version
+
+|Später
+|weitere Sprachen (ZH)
+|Timer (75/90 Min.); Verteilung über Lernziele
+|Auswertung pro Lernziel
+|Antwortstatistik; Regel „> 50 % falsch“
+|–
+|===
+
+== Der Umfang der ersten Stufe ist bewusst klein
+
+=== Must
+
+* *M1* Die App importiert alle gültigen XML-Fragen aus `mock/questions` und `pool/**` des öffentlichen Repos (Runde 8, 14).
+* *M2* Kandidaten legen ohne Anmeldung eine Prüfung mit bis zu 40 freigegebenen Fragen auf Deutsch oder Englisch ab (Runde 2, 9, 10).
+* *M3* Die App bewertet nach den offiziellen Regeln und zeigt das Ergebnis erst, wenn alle Fragen beantwortet sind (Runde 8, 12; `exam-info/examination-rules-de.docx`).
+* *M4* Kandidaten melden jederzeit ein Problem zu einer Frage oder einer Antwortoption (Runde 1, 13).
+* *M5* AG-Mitglieder melden sich an, sehen Feedback und geben Draft-Fragen frei (Runde 12, 13).
+* *M6* Eine freigegebene Frage fällt automatisch auf Draft zurück, sobald ihre aktuelle Version die Schwelle erreicht (Runde 7, 13).
+
+=== Should
+
+* *S1* Eine unterbrochene Prüfung lässt sich per Link fortsetzen, auch auf einem anderen Gerät (Runde 14).
+* *S2* Nach der Prüfung bittet die App um Feedback (Runde 8).
+* *S3* AG-Mitglieder sehen frühere Versionen einer Frage mit ihren Zählerständen (Runde 11).
+
+=== Won't (in Stufe 1)
+
+Diese Punkte sind verschoben, nicht verworfen (Runde 12, 14):
+
+* Timer
+* Übungsmodus mit sofortiger Auflösung
+* Antwortstatistik und Regel „> 50 % falsch“
+* weitere Sprachen außer Deutsch und Englisch
+* Umwandlung von Word und Markdown nach XML (geschieht außerhalb der App)
+* Bearbeiten von Fragen in der App (geschieht per Pull Request im Repo)
+* Login für Kandidaten
+* Übernahme in den echten Prüfungspool (geschieht von Hand im privaten Repo)
+
+== Fachliche Regeln, die die Spec ausformulieren muss
+
+Die Spec überführt diese Regeln in nummerierte BR-IDs im EARS-Muster.
+
+[cols="1,5,2"]
+|===
+|ID |Regel |Quelle
+
+|R1
+|Eine Frage hat genau einen der Status *Draft* oder *Released*. Nur Released-Fragen erscheinen in einer Prüfung.
+|Runde 12, 13
+
+|R2
+|Die 38 Mock-Fragen starten als Released, alle Poolfragen als Draft.
+|Runde 10, 11
+
+|R3
+|Ein AG-Mitglied setzt eine Draft-Frage per Klick auf Released.
+|Runde 12
+
+|R4
+|Erreicht die aktuelle Version einer Released-Frage die Schwelle, setzt die App sie automatisch auf Draft. Die Schwelle ist einstellbar und startet bei 3 Problemmeldungen.
+|Runde 7, 13
+
+|R5
+|Eine Meldung zu einer Antwortoption zählt als Meldung zur ganzen Frage.
+|Runde 13
+
+|R6
+|Die App erkennt eine Frage an ihrer `id` und eine Version an einem Hash ihres Inhalts. Ändert sich der Hash, entsteht eine neue Version im Status Draft, deren Zähler bei null beginnen; frühere Versionen bleiben mit Feedback und Zählerständen einsehbar.
+|Runde 11, 14
+
+|R7
+|Eine Prüfung umfasst alle verfügbaren Released-Fragen in der gewählten Sprache, höchstens 40, in zufälliger Auswahl. Zum Start sind das die 38 Mock-Fragen.
+|Runde 1, 9; PR-Review 2026-11-18
+
+|R8
+|Die Punktvergabe folgt den offiziellen Regeln für A-, P- und K-Fragen: Teilpunkte von 1/n, Abzug für falsche Kreuze, nie weniger als 0 Punkte pro Frage, bestanden ab 60 % der erreichbaren Punkte.
+|`exam-info/examination-rules-de.docx`
+
+|R9
+|Eine Frage zählt für SC2 nur, wenn sie Teil einer vollständig beantworteten und abgegebenen Prüfung war.
+|Runde 11
+
+|R10
+|Kandidaten bleiben anonym. Freiwillige Kontaktdaten sehen nur AG-Mitglieder; die App löscht sie, sobald eine neue Version der Frage vorliegt.
+|Runde 7, 14
+|===
+
+== Randbedingungen
+
+* *C1* Die Fragen liegen als einzelne XML-Dateien nach `exam.rng` im öffentlichen Repo auf `main`. Ein Release-Artefakt für XML gibt es nicht; das Release erzeugt nur PDFs (`.github/workflows/main.yml`).
+* *C2* Status, Feedback und Sessions brauchen ein eigenes Backend; GitHub allein reicht nicht (Runde 10).
+* *C3* Der Betrieb läuft in Stufe 1 in einem kostenlosen Tarif und muss später als Docker-Container auf iSAQB-Infrastruktur laufen können (Runde 11).
+* *C4* Die App ist öffentlich und darf die Fragen anzeigen (Runde 13).
+* *C5* Neubau in diesem Repo. Bewährte Ideen der enyineer-App (MIT) dürfen übernommen werden: Laden per GitHub-API, Cache, GitHub-OAuth (Runde 15).
+
+== Sechs Risiken begleiten die erste Stufe
+
+Die Spec und die Architektur müssen jedes Risiko adressieren oder bewusst akzeptieren (PR-Review 2026-11-18).
+
+[cols="1,5,2"]
+|===
+|ID |Risiko |Rolle
+
+|RK1
+|Draft-Fragen bekommen kein Community-Feedback, weil sie nicht in Prüfungen erscheinen. 5–10 AG-Mitglieder müssen rund 100 Poolfragen vorab sichten; das kann zum Engpass werden und SC2 verzögern.
+|Product Owner
+
+|RK2
+|Drei anonyme Meldungen genügen, um eine Frage aus der Prüfung zu nehmen. Ohne Spam-Schutz kann eine Person gute Fragen gezielt entfernen.
+|Architect
+
+|RK3
+|Der GitHub-Login für die AG ist nicht erprobt. Taugt die Mitgliedschaft in einem `isaqb-org`-Team nicht als Admin-Kriterium, braucht die App eine eigene Admin-Liste. Ein Spike klärt das.
+|Architect
+
+|RK4
+|Gehört das Konto beim Hosting-Anbieter einer Person statt dem iSAQB e. V., hängt der Betrieb an dieser Person.
+|Operations
+
+|RK5
+|Ein Inhalts-Hash ändert sich auch bei reinen Formatänderungen und setzt dann Zähler zurück. Der Hash muss über normalisierten Inhalt gebildet werden.
+|Developer
+
+|RK6
+|Die zufällige Auswahl berücksichtigt die Kapitel des Lehrplans nicht. Eine Probeprüfung kann deshalb anders gewichtet sein als die echte Prüfung.
+|Domain Expert
+|===
+
+== Fakten aus dem Fragen-Repo
+
+Stand 2026-10-02, ermittelt aus `isaqb-org/foundation-exam-questions`:
+
+* 38 Mock-Fragen (`mock/questions`), davon 13 Zuordnungsfragen (`categoryQuestion`); 24 Fragen mit 1 Punkt, 14 mit 2 Punkten.
+* 45 Poolfragen als XML (`pool/active-group`), keine davon mit Erklärung (`explanation`).
+* Weitere Poolfragen nur als Markdown (`pool/lorz-it`, 3 Fragen) oder Word/PowerPoint (`pool/Albion`).
+* Alle Fragen liegen auf Deutsch und Englisch vor, etwa die Hälfte zusätzlich auf Chinesisch.
+* Alle Frage-IDs sind über Mock und Pool hinweg eindeutig.
+* `exam.rng` kennt keinen Status; die App führt ihn selbst.
